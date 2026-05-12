@@ -1,0 +1,409 @@
+################################################################################
+#  TRIARCH BOT — CONTEXTO DEL PROYECTO
+#  Última actualización: 2026-05-12
+#
+#  PROPÓSITO DE ESTE ARCHIVO
+#  -------------------------
+#  Memoria viva del proyecto. Se lee PRIMERO al retomar el trabajo en una sesión
+#  nueva. Cuando Claude empieza desde cero, lee esto y reconstruye el estado
+#  mental del proyecto sin tener que re-explorar todo el código.
+#
+#  CÓMO ACTUALIZARLO
+#  -----------------
+#  Al final de cada sesión, actualizar como mínimo:
+#    · §03  ETAPA ACTUAL
+#    · §10  CHANGELOG
+#    · §11  PRÓXIMOS PASOS
+#  El resto solo si hubo cambio estructural.
+#
+#  ÍNDICE
+#  ------
+#  §01  Resumen ejecutivo del proyecto
+#  §02  Filosofía y reglas inquebrantables
+#  §03  ETAPA ACTUAL — dónde estamos ahora mismo
+#  §04  Arquitectura — mapa de carpetas
+#  §05  Perfiles por activo
+#  §06  Switches en vivo (runtime.yaml)
+#  §07  Dashboard — pestañas y contratos
+#  §08  Backtesting — cómo se corre y qué reporta
+#  §09  Comandos de uso (PowerShell)
+#  §10  Changelog (inverso)
+#  §11  Próximos pasos
+#  §12  Notas técnicas y lecciones
+################################################################################
+
+
+################################################################################
+#  §01  RESUMEN EJECUTIVO
+################################################################################
+
+Triarch es un bot de trading sistemático sobre MetaTrader 5.
+
+  • Multi-activo:    NAS100 (índice), XAUUSD (commodity), USDJPY (FX)
+  • Multi-estrategia con capa de confluencia entre familias
+  • 3 modos de ejecución por activo: SIGNAL_ONLY | APPROVAL | AUTO
+  • 3 capas de aprendizaje (planificadas):
+        v1  Postmortem LLM en Obsidian (implementado)
+        v2  ML clásico XGBoost (pendiente)
+        v4+ RL sobre el ejecutor (lejano)
+
+Codename "Triarch" = 3 activos × 3 modos × 3 capas de aprendizaje.
+
+
+################################################################################
+#  §02  FILOSOFÍA — REGLAS INQUEBRANTABLES
+################################################################################
+
+Heredadas de Roybot:
+
+  1. Multi-estrategia con confluencia > una sola estrategia mágica
+  2. Risk manager con caps duros (SL obligatorio, RR mínimo, daily loss cap)
+  3. Audit trail forense — cada decisión queda registrada, incluyendo rechazos
+  4. Empezar simple, iterar (no añadir estrategia #5 sin promocionar las 4)
+  5. No saltar de fase sin métricas pre-definidas que se cumplan
+
+Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
+
+  · SL siempre presente al colocar una orden
+  · RR mínimo respetado (varía por activo: 1.2 USDJPY, 1.5 NAS100, 2.0 XAUUSD)
+  · Daily loss cap activo
+  · Max trades por día por activo
+  · Kill switch global (TRIARCH_KILL=1)
+
+
+################################################################################
+#  §03  ETAPA ACTUAL
+################################################################################
+
+Fecha: 2026-05-12
+
+ESTAMOS EN: pulido del dashboard + métricas serias de backtesting.
+
+Acabamos de:
+
+  ✅ Rediseñar el dashboard con cards limpias y formato amigable
+  ✅ Unificar Live + Control en una sola pestaña con datos de cuenta MT5 reales
+     (balance, equity, margen, server, login, apalancamiento)
+  ✅ Traducir todos los códigos técnicos (status, reject reasons) a texto
+     legible en español, con pills de color
+  ✅ Formatear fechas como "Hoy 14:30 UTC" / "Ayer 09:45" / "Lun 12 may"
+  ✅ Añadir nuevo tab "Backtesting" dentro del dashboard:
+       · Form: activos + rango de fechas (desde/hasta) + botón "Correr"
+       · Tabla comparativa con WR, PF, Sharpe, Sortino, SQN, DD, trades/sem
+       · Expander por activo con KPI grid, equity curve, breakdown por
+         estrategia y trade log completo
+       · Download del resumen como .txt
+  ✅ Mejorar `scripts/backtest.py` con:
+       Sharpe, Sortino, SQN, avg win/loss, largest win/loss, rachas más largas,
+       avg bars held, equity curve, parámetro to_date.
+     `backtest_symbol()` ahora es reutilizable desde el dashboard.
+
+LO QUE SIGUE INMEDIATAMENTE: ver §11.
+
+ARCHIVOS CLAVE TOCADOS HOY:
+  · dashboard/app.py        — reescrito completo
+  · scripts/backtest.py     — métricas avanzadas
+  · contexto.txt            — este archivo
+
+
+################################################################################
+#  §04  ARQUITECTURA — MAPA DE CARPETAS
+################################################################################
+
+Raíz del proyecto:
+    C:\Users\jeanp\OneDrive\מסמכים\OB vault\03 - Resources\Data Engineering\Python\triarch
+
+    config/           settings + symbols.yaml + runtime.yaml (overrides live)
+                      └─ runtime.py: API para leer/escribir overrides
+    data_layer/       MT5Client (wrapper oficial MetaTrader5)
+    engine/           indicadores + orchestrator (loop principal)
+    strategies/       ORB, VWAP_MR, EMA_MOMENTUM, SCALPER
+                      └─ registry.py mapea nombre → clase
+    confluence/       filtro mín-señales + mín-familias
+    risk/             RiskManager (caps, kill-switch, lock-outs)
+    executor/         SIGNAL_ONLY | APPROVAL | AUTO + sizing + trade_monitor
+    signals/          schema Pydantic + notifiers (Telegram, Discord)
+    audit/            store SQLite + writer Obsidian
+    learning/         postmortem semanal (v1) — features ML pendiente
+    dashboard/        Streamlit (6 pestañas, ver §07)
+    scripts/          entrypoints CLI:
+                        connect_mt5, run_live, serve, backtest, fetch_history,
+                        db_summary, diagnose_mt5
+    tests/            pytest (indicators, orb, risk, confluence, smoke)
+    docs/             setup-mt5-demo, architecture
+    data_cache/       triarch.sqlite (audit) + history/*.parquet (velas)
+    logs/             rotación de loguru
+
+
+################################################################################
+#  §05  PERFILES POR ACTIVO
+################################################################################
+
+NAS100   — perfil "balanced"
+    TF M15  ·  estrategias: ORB + VWAP_MR + EMA_MOMENTUM
+    Objetivo: ~8 trades/semana
+    Sesión: 13:30–17:00 UTC (cash open NY)
+    Risk: 0.5% por trade  ·  daily cap 2%  ·  máx 5 trades/día  ·  RR ≥ 1.5
+
+XAUUSD   — perfil "quality"
+    TF M30 (menos ruido que M15)
+    Estrategias: ORB + EMA_MOMENTUM  (sin VWAP_MR — genera demasiado ruido en oro)
+    Objetivo: ~4 trades/semana con win rate medio-alto
+    Sesión: 12:00–17:00 UTC (solape Londres + NY)
+    Risk: 0.75% por trade  ·  daily cap 1.5%  ·  máx 2 trades/día  ·  RR ≥ 2.0
+    → cap duro de 2/día garantiza ~4/semana máximo
+
+USDJPY   — perfil "scalper"
+    TF M5
+    Estrategias: SCALPER (nueva) + EMA_MOMENTUM
+    Objetivo: ~25 trades/semana, rentable a escala
+    Sesión: 00:00–10:00 UTC (Tokio + apertura Londres)
+    Risk: 0.25% por trade (más chico, más volumen) · daily cap 1.5% · máx 8/día
+    RR ≥ 1.2 (hit-rate compensa)
+
+
+################################################################################
+#  §06  SWITCHES EN VIVO  (config/runtime.yaml)
+################################################################################
+
+Archivo: config/runtime.yaml
+Forma:
+    take_trades:
+      NAS100: false
+      XAUUSD: false
+      USDJPY: false
+
+Semántica:
+    take_trades = ON   → orchestrator respeta cfg.mode del yaml (puede ejecutar)
+    take_trades = OFF  → orchestrator fuerza SIGNAL_ONLY (solo notifica)
+
+El dashboard tab "Live & Control" tiene un toggle por activo que escribe a
+este archivo. Cambia efectivo en el próximo tick (no requiere reiniciar).
+
+Para parar TODO de golpe (no por activo): TRIARCH_KILL=1 en .env + reinicio.
+
+
+################################################################################
+#  §07  DASHBOARD — PESTAÑAS Y CONTRATOS
+################################################################################
+
+Streamlit, 6 pestañas:
+
+  1. 🔴 Live & Control
+       · Bloque de cuenta MT5: balance, equity, margen usado/libre,
+         apalancamiento, server, login, titular
+       · Una tarjeta por activo: perfil, TF, sesión, toggle take_trades,
+         última señal con fecha legible + status traducido + motivo
+
+  2. 🧠 Decisiones
+       · Vista legible del audit trail
+       · Filtros: activo, estrategia, estado (Tomadas/Rechazadas/Cerradas/
+         Pendientes), dirección, últimos N días
+       · Tabla con columnas amigables; descarga como .txt
+
+  3. 📊 Backtesting
+       · Form: activos múltiples + rango fechas + botón "Correr"
+       · Tabla comparativa con WR/PF/Sharpe/Sortino/SQN/DD/trades-sem
+       · Expander por activo con KPI grid, equity curve, breakdown por
+         estrategia, trade log
+       · Download resumen .txt
+
+  4. 📈 Signals  — tabla cruda (debug)
+  5. 🔍 Evals    — audit trail crudo (debug)
+  6. 📦 Stats    — agregados últimos 30 días
+
+DEPENDENCIAS:
+  · MT5Client: el dashboard intenta conectarse para mostrar cuenta. Si falla,
+    muestra warning. Cuando se usa `scripts.serve`, el dashboard corre en un
+    subproceso independiente del loop, así que tiene su propia conexión MT5.
+
+
+################################################################################
+#  §08  BACKTESTING
+################################################################################
+
+ARCHIVOS:
+    scripts/fetch_history.py  → descarga velas MT5 → parquet (data_cache/history/)
+    scripts/backtest.py       → corre estrategias sobre los parquet
+
+API REUTILIZABLE (importada por el dashboard):
+    from scripts.backtest import backtest_symbol, _format_summary
+
+    res = backtest_symbol(cfg, confluence, from_date=..., to_date=...)
+    # res es dict con:
+    #   trades, wins, losses, win_rate, profit_factor, expectancy_r,
+    #   avg_win_r, avg_loss_r, largest_win_r, largest_loss_r,
+    #   max_drawdown_r, longest_win_streak, longest_loss_streak,
+    #   avg_bars_held, trades_per_week_avg,
+    #   sharpe_ratio, sortino_ratio, sqn,
+    #   by_strategy, trade_log, equity_curve, range
+
+LO QUE DEBE PASAR ANTES DEL PRIMER BACKTEST:
+    1. .env completo con credenciales MT5
+    2. Terminal MT5 abierto
+    3. `python -m scripts.fetch_history --years 1`   ← baja parquet
+    4. Recién entonces sirve `python -m scripts.backtest` o el tab Backtest
+
+INTERPRETACIÓN DE MÉTRICAS:
+    Sharpe ratio: > 1 aceptable · > 2 bueno · > 3 excepcional (anualizado, ojo)
+    Sortino     : igual que Sharpe pero solo cuenta volatilidad negativa
+    SQN (Van Tharp): > 1.7 sistema decente · > 2.5 bueno · > 3 excelente
+    Profit factor: > 1.3 mínimo · > 1.7 deseable · > 2 excelente
+    Expectancy en R: PnL medio esperado por trade en múltiplos de R (riesgo)
+                     Sistema viable necesita expectancy > 0
+    Max drawdown en R: cuántos "trades perfectos perdidos" peor caso
+
+
+################################################################################
+#  §09  COMANDOS DE USO (PowerShell)
+################################################################################
+
+# ─── Setup inicial (solo una vez) ───
+cd "C:\Users\jeanp\OneDrive\מסמכים\OB vault\03 - Resources\Data Engineering\Python\triarch"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+copy .env.example .env
+# editar .env con credenciales MT5
+
+# ─── Cada sesión ───
+.\.venv\Scripts\Activate.ps1
+
+# Test de conexión MT5
+python -m scripts.connect_mt5
+
+# RECOMENDADO: loop + dashboard en un solo comando
+python -m scripts.serve --tick 30 --port 8765
+# abre http://localhost:8765
+
+# Por separado
+python -m scripts.run_live --tick 30
+streamlit run dashboard/app.py
+
+# Bajar histórico (necesario antes del primer backtest)
+python -m scripts.fetch_history --years 1
+python -m scripts.fetch_history --symbol USDJPY --timeframe M5 --years 2
+
+# Backtest desde CLI
+python -m scripts.backtest
+python -m scripts.backtest --symbol XAUUSD --from 2024-01-01 --to 2025-06-30
+python -m scripts.backtest --symbol USDJPY --out logs/bt_usdjpy.txt
+
+# Postmortem manual
+python -m learning.postmortem --week 2026-W19
+
+# Tests unitarios
+pytest
+
+
+################################################################################
+#  §10  CHANGELOG (inverso)
+################################################################################
+
+[2026-05-12]  Dashboard 2.0 + métricas avanzadas
+    • dashboard/app.py    REWRITE — cards, status traducido, fechas legibles,
+                          merge Live+Control, nuevo tab Backtesting completo
+    • scripts/backtest.py +Sharpe, +Sortino, +SQN, +avg win/loss, +rachas,
+                          +equity_curve, +trade_log, +parámetro to_date
+    • contexto.txt        Reescrito con índice numerado y secciones marcadas
+
+[2026-05-12]  Reconstrucción tras incidente OneDrive
+    • scripts/serve.py            ← entrypoint unificado loop+dashboard
+    • scripts/fetch_history.py    ← descarga histórico MT5 → parquet
+    • scripts/backtest.py         ← backtester con métricas básicas
+    • strategies/scalper.py       ← nueva estrategia SCALPER para USDJPY
+    • strategies/registry.py      ← registra SCALPER
+    • config/symbols.yaml         ← perfiles quality (XAUUSD) y scalper (USDJPY)
+    • config/settings.py          ← SymbolConfig +take_trades/profile/target
+    • config/runtime.py           ← nuevo: get/set overrides en vivo
+    • config/runtime.yaml         ← nuevo: archivo de overrides persistidos
+    • engine/orchestrator.py      ← respeta take_trades runtime
+    • dashboard/app.py            ← +Control +Decisiones (versión inicial)
+
+[2026-05-06]  Último snapshot conocido pre-incidente OneDrive
+    Arquitectura base: 3 estrategias originales (ORB/VWAP_MR/EMA_MOMENTUM),
+    risk manager, audit store, confluence, executor multi-modo, postmortem v1.
+
+
+################################################################################
+#  §11  PRÓXIMOS PASOS
+################################################################################
+
+INMEDIATO (esta sesión / la próxima)
+    [ ] `git init` + primer commit como punto de restauración local.
+        El .gitignore ya está; el repo NO tiene git inicializado todavía.
+    [ ] Bajar al menos 6-12 meses de histórico:
+            python -m scripts.fetch_history --years 1
+    [ ] Correr el primer backtest end-to-end desde el dashboard nuevo y
+        validar visualmente: cards, equity curve, KPIs, download txt.
+    [ ] Pasar `pytest` para verificar que no se rompió nada al editar
+        orchestrator/settings/registry.
+
+CORTO PLAZO (esta semana)
+    [ ] Tunear umbrales del SCALPER si baja del objetivo (~25 trades/sem en
+        backtest USDJPY): ajustar atr_min, sl_atr_mult, tp_atr_mult,
+        rel_atr threshold (hoy 0.0005).
+    [ ] Validar que XAUUSD M30 con cap 2/día efectivamente da ~4/semana.
+    [ ] Probar dashboard "Decisiones" — descargar TXT y revisar formato.
+    [ ] Probar pausar/reanudar con tab "Live & Control" en sesión real.
+
+MEDIO PLAZO (próximas 2-4 semanas)
+    [ ] Empezar learning/features.py — guardar features con cada signal.
+    [ ] Telegram con botones inline para APPROVAL mode (build_default_notifiers
+        ya tiene scaffold).
+    [ ] Reporte semanal automático (cron + postmortem.py).
+    [ ] Filtrar duplicados de signals por mismo (symbol, bar_time) más estricto
+        — hoy el dedup_key incluye strategy y direction.
+
+NO TOCAR HASTA tener métricas de promoción
+    [ ] AUTO mode con dinero real
+        Criterios: ≥ 3 meses demo, PF ≥ 1.3, max DD < 10R, win rate > 40%
+    [ ] ML filter en producción (≥ 6 meses de signals reales)
+    [ ] RL (≥ 1 año real)
+
+
+################################################################################
+#  §12  NOTAS TÉCNICAS Y LECCIONES
+################################################################################
+
+ONEDRIVE
+    OneDrive movió la carpeta Documents al folder OneDrive sin avisar.
+    Resultado: la única copia estable es la de OneDrive.
+    Mitigación: inicializar git LOCAL guarda historial independiente de la nube
+    y permite rollback.
+    OneDrive guarda hasta 25 versiones por archivo accesibles desde web
+    (click derecho → Historial de versiones) y mantiene papelera 30 días.
+
+SINCRONIZACIÓN VS BASH
+    Cuando se editan archivos por el host, la vista del workspace bash puede
+    estar stale temporalmente (OneDrive demora unos segundos). Para validar
+    sintaxis fiable, usar la lectura del host (Read tool) o esperar y reintentar.
+
+SCALPER — TUNING
+    Filtros actuales:
+      atr_min relativo: 0.0005 (≈ 5 pips USDJPY)
+      sl_atr_mult: 1.0  ·  tp_atr_mult: 1.4  → RR ≈ 1.4
+      pull-back: EMA9 cruzada en la vela actual respecto a la previa
+    Si en backtest da muy pocos trades → bajar atr_min, ampliar pull-back.
+    Si da muchos con WR bajo → subir atr_min, exigir EMA9>EMA21 con sep mayor.
+
+XAUUSD — TUNING
+    RR mínimo 2.0 hará que muchos setups se rechacen por risk.
+    Esto es DESEADO (perfil quality). El audit trail va a estar lleno de
+    REJECTED_RISK con motivo "rr_too_low" — no es bug.
+
+DASHBOARD — MT5 EN SUBPROCESO
+    Cuando se usa `scripts.serve`, el dashboard corre como subproceso de
+    Streamlit independiente del orchestrator. Cada proceso tiene su propia
+    conexión MT5. Mismas credenciales en .env, conexiones distintas — MT5
+    permite múltiples sesiones Python contra el mismo terminal.
+
+NOMENCLATURA
+    "R" = riesgo por trade. PnL en R significa "múltiplos del riesgo arriesgado".
+    Un trade que da +1R ganó lo mismo que se arriesgó. Es la unidad estándar
+    para comparar trades de tamaños distintos.
+
+
+################################################################################
+#  FIN — actualizar §03, §10 y §11 al final de cada sesión
+################################################################################

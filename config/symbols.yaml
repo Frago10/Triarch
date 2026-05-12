@@ -1,0 +1,113 @@
+# ─────────────────────────────────────────────────────────
+# Triarch — symbols configuration
+#
+# OJO: el "name" exacto del símbolo varía por broker.
+#   - IC Markets:  NAS100 / XAUUSD / USDJPY
+#   - Pepperstone: NAS100 / XAUUSD / USDJPY
+#   - XM:          US100  / GOLD   / USDJPY
+#   - Exness:      USTEC  / XAUUSD / USDJPY
+# Ajusta el campo "broker_symbol" según tu broker.
+#
+# Sesiones en UTC — el bot convierte internamente.
+#
+# Campos nuevos:
+#   profile          → etiqueta humana del perfil ("quality" | "scalper" | "balanced")
+#   take_trades      → si false → fuerza SIGNAL_ONLY a runtime (override yaml mode)
+#                       (también se puede toggle desde el dashboard sin reiniciar)
+#   target_trades_wk → objetivo de trades por semana (para sanity-check en
+#                       backtests, no se usa como filtro hard)
+# ─────────────────────────────────────────────────────────
+
+NAS100:
+  broker_symbol: NDAQ           # MetaQuotes-Demo lo llama NDAQ (otros brokers: NAS100/US100/USTEC)
+  description: Nasdaq 100 CFD
+  family: index
+  timeframe: M15
+  mode: SIGNAL_ONLY
+  take_trades: false
+  profile: balanced
+  target_trades_wk: 8
+  # Sesión fuerte: cash open NY 13:30-17:00 UTC (verano)
+  session_utc:
+    start: "13:30"
+    end: "17:00"
+  risk:
+    max_daily_loss_pct: 2.0
+    max_consec_losses: 3
+    max_trades_per_day: 5
+    min_rr_ratio: 1.5
+  position_sizing:
+    method: risk_pct
+    risk_per_trade_pct: 0.5
+    min_lot: 0.10
+    max_lot: 5.0
+  strategies:
+    - ORB
+    - VWAP_MR
+    - EMA_MOMENTUM
+
+# ─────────────────────────────────────────────────────────
+# XAUUSD — perfil "calidad"
+# Objetivo: ~4 trades/semana con win rate medio-alto.
+# Sin VWAP_MR (genera demasiado ruido en oro). Más confluencia exigida vía
+# settings (.env: TRIARCH_CONFLUENCE_MIN_SIGNALS=2).
+# Timeframe M30 → menos ruido que M15.
+# ─────────────────────────────────────────────────────────
+XAUUSD:
+  broker_symbol: XAUUSD
+  description: Gold spot (oro)
+  family: commodity
+  timeframe: M30
+  mode: SIGNAL_ONLY
+  take_trades: false
+  profile: quality
+  target_trades_wk: 4
+  # Sesión fuerte: solapamiento Londres + NY = 12:00-17:00 UTC
+  session_utc:
+    start: "12:00"
+    end: "17:00"
+  risk:
+    max_daily_loss_pct: 1.5             # más conservador, trades de calidad
+    max_consec_losses: 2
+    max_trades_per_day: 2               # cap duro: máx 2/día → ~4/semana
+    min_rr_ratio: 2.0                   # solo trades con RR ≥ 2
+  position_sizing:
+    method: risk_pct
+    risk_per_trade_pct: 0.75            # algo más por trade (menos volumen)
+    min_lot: 0.01
+    max_lot: 2.0
+  strategies:
+    - ORB
+    - EMA_MOMENTUM                      # quitamos VWAP_MR para oro
+
+# ─────────────────────────────────────────────────────────
+# USDJPY — perfil "scalper"
+# Objetivo: rentable a escala con muchos trades chicos y win rate medio-alto.
+# Timeframe M5, estrategia SCALPER, RR moderado, sizing pequeño.
+# ─────────────────────────────────────────────────────────
+USDJPY:
+  broker_symbol: USDJPY
+  description: USD/JPY spot — scalper profile
+  family: fx
+  timeframe: M5
+  mode: SIGNAL_ONLY
+  take_trades: false
+  profile: scalper
+  target_trades_wk: 25
+  # Sesión fuerte: Tokio 00:00-08:00 + Londres open 08:00-10:00 UTC
+  session_utc:
+    start: "00:00"
+    end: "10:00"
+  risk:
+    max_daily_loss_pct: 1.5
+    max_consec_losses: 4                # scalper aguanta más drawdown intradía
+    max_trades_per_day: 8               # objetivo ~25/semana
+    min_rr_ratio: 1.2                   # scalper: RR más bajo, ratio de aciertos compensa
+  position_sizing:
+    method: risk_pct
+    risk_per_trade_pct: 0.25            # menor riesgo por trade (más volumen)
+    min_lot: 0.01
+    max_lot: 3.0
+  strategies:
+    - SCALPER
+    - EMA_MOMENTUM
