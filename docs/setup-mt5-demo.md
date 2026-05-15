@@ -4,16 +4,16 @@
 
 ## 1. Elegir broker (5 min)
 
-Para MT5 necesitas una **cuenta demo** de un broker que ofrezca los 3 activos: **NAS100, XAUUSD, USDJPY**.
+Para MT5 necesitas una **cuenta demo** de un broker que ofrezca los 3 activos: **NAS100, XAUUSD, EURUSD**.
 
 Recomendados (todos buenos para CFDs en demo, todos con MT5 nativo):
 
 | Broker | Pros | Símbolos | URL |
 |---|---|---|---|
-| **IC Markets** | Spread bajo, ECN, infra sólida | NAS100, XAUUSD, USDJPY | https://www.icmarkets.com |
-| **Pepperstone** | Spread bajo, regulado AU/UK | NAS100, XAUUSD, USDJPY | https://www.pepperstone.com |
-| **XM** | Demo ilimitada, muchas instituciones lo usan | US100 (=NAS100), GOLD, USDJPY | https://www.xm.com |
-| **Exness** | Sin verificación inmediata para demo | USTEC (=NAS100), XAUUSD, USDJPY | https://www.exness.com |
+| **IC Markets** | Spread bajo, ECN, infra sólida | NAS100, XAUUSD, EURUSD | https://www.icmarkets.com |
+| **Pepperstone** | Spread bajo, regulado AU/UK | NAS100, XAUUSD, EURUSD | https://www.pepperstone.com |
+| **XM** | Demo ilimitada, muchas instituciones lo usan | US100 (=NAS100), GOLD, EURUSD | https://www.xm.com |
+| **Exness** | Sin verificación inmediata para demo | USTEC (=NAS100), XAUUSD, EURUSD | https://www.exness.com |
 
 **Mi recomendación:** **IC Markets** o **Pepperstone**. Si quieres demo sin papeleo: **Exness**.
 
@@ -46,9 +46,9 @@ Recomendados (todos buenos para CFDs en demo, todos con MT5 nativo):
    - Click derecho → `Symbols` y busca cada uno.
 
 > 🔍 **Nombres exactos varían por broker:**
-> - IC Markets / Pepperstone: `NAS100`, `XAUUSD`, `USDJPY`
-> - XM: `US100`, `GOLD`, `USDJPY`
-> - Exness: `USTEC`, `XAUUSD`, `USDJPY`
+> - IC Markets / Pepperstone: `NAS100`, `XAUUSD`, `EURUSD`
+> - XM: `US100`, `GOLD`, `EURUSD`
+> - Exness: `USTEC`, `XAUUSD`, `EURUSD`
 >
 > Anota los nombres exactos — los pondrás en `config/symbols.yaml`.
 
@@ -130,7 +130,7 @@ Triarch — test de conexión MT5
 ├────────┼──────────────┼─────────┼─────────┼────────┼─────────┼───────────────┤
 │ NAS100 │ NAS100       │ 17452.5 │ 17453.0 │ 5      │ 0.10    │ 10            │
 │ XAUUSD │ XAUUSD       │ 2014.50 │ 2014.80 │ 30     │ 0.01    │ 10            │
-│ USDJPY │ USDJPY       │ 154.250 │ 154.255 │ 5      │ 0.01    │ 10            │
+│ EURUSD │ EURUSD       │ 1.08412 │ 1.08413 │ 1      │ 0.01    │ 10            │
 └────────┴──────────────┴─────────┴─────────┴────────┴─────────┴───────────────┘
 ```
 

@@ -99,12 +99,18 @@ class ORBStrategy(Strategy):
         if risk_pts <= 0:
             return self._make_eval(ctx, detected=False, blocked_by="invalid_risk"), None
 
+        # RR efectivo: si el símbolo pide RR mínimo más alto que el default de la
+        # estrategia, lo respetamos. Así XAUUSD con min_rr=2.5 obtiene TP1 a 2.5R.
+        cfg_min_rr = ctx.symbol_cfg.risk.min_rr_ratio
+        rr_target_eff = max(self.rr_target, cfg_min_rr)
+        rr_target_tp2_eff = max(self.rr_target_tp2, rr_target_eff + 1.0)
+
         if direction == Direction.LONG:
-            take_profit_1 = entry + self.rr_target * risk_pts
-            take_profit_2 = entry + self.rr_target_tp2 * risk_pts
+            take_profit_1 = entry + rr_target_eff * risk_pts
+            take_profit_2 = entry + rr_target_tp2_eff * risk_pts
         else:
-            take_profit_1 = entry - self.rr_target * risk_pts
-            take_profit_2 = entry - self.rr_target_tp2 * risk_pts
+            take_profit_1 = entry - rr_target_eff * risk_pts
+            take_profit_2 = entry - rr_target_tp2_eff * risk_pts
 
         rr_ratio = abs(take_profit_1 - entry) / risk_pts
 

@@ -24,7 +24,6 @@ import streamlit as st
 from audit.store import AuditStore
 from config.runtime import get_take_trades, set_take_trades
 from config.settings import get_settings, get_symbols
-from confluence.filter import ConfluenceConfig, ConfluenceFilter
 from data_layer.mt5_client import MT5_AVAILABLE, MT5Client
 
 st.set_page_config(page_title="Triarch", layout="wide", page_icon="🤖")
@@ -449,13 +448,6 @@ with tab_bt:
         # mientras el usuario solo está mirando el resto del dashboard.
         from scripts.backtest import backtest_symbol
 
-        confluence = ConfluenceFilter(
-            ConfluenceConfig(
-                min_signals=settings.triarch_confluence_min_signals,
-                min_families=settings.triarch_confluence_min_families,
-                min_combined_score=settings.triarch_confluence_min_score,
-            )
-        )
         from_dt = datetime.combine(from_d, datetime.min.time()).replace(tzinfo=timezone.utc)
         to_dt = datetime.combine(to_d, datetime.max.time()).replace(tzinfo=timezone.utc)
 
@@ -464,7 +456,8 @@ with tab_bt:
         for i, sym in enumerate(sel_symbols, start=1):
             cfg = symbols[sym]
             prog.progress(i / max(1, len(sel_symbols)), text=f"Procesando {sym}…")
-            res = backtest_symbol(cfg, confluence, from_date=from_dt, to_date=to_dt)
+            # backtest_symbol arma su propia confluencia por activo
+            res = backtest_symbol(cfg, settings, from_date=from_dt, to_date=to_dt)
             results.append(res)
         prog.empty()
         st.session_state["bt_results"] = results

@@ -39,7 +39,7 @@
 
 Triarch es un bot de trading sistemático sobre MetaTrader 5.
 
-  • Multi-activo:    NAS100 (índice), XAUUSD (commodity), USDJPY (FX)
+  • Multi-activo:    NAS100 (índice), XAUUSD (commodity), EURUSD (FX)
   • Multi-estrategia con capa de confluencia entre familias
   • 3 modos de ejecución por activo: SIGNAL_ONLY | APPROVAL | AUTO
   • 3 capas de aprendizaje (planificadas):
@@ -65,7 +65,7 @@ Heredadas de Roybot:
 Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 
   · SL siempre presente al colocar una orden
-  · RR mínimo respetado (varía por activo: 1.2 USDJPY, 1.5 NAS100, 2.0 XAUUSD)
+  · RR mínimo respetado (varía por activo: 0.8 EURUSD, 1.5 NAS100, 2.2 XAUUSD)
   · Daily loss cap activo
   · Max trades por día por activo
   · Kill switch global (TRIARCH_KILL=1)
@@ -75,35 +75,89 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 #  §03  ETAPA ACTUAL
 ################################################################################
 
-Fecha: 2026-05-12
+Fecha: 2026-05-14
 
-ESTAMOS EN: pulido del dashboard + métricas serias de backtesting.
+ESTAMOS EN: tras el tuning #2, se cambió el 3er activo de USDJPY → EURUSD
+(decisión del usuario). EURUSD usa el MISMO perfil scalper que tenía USDJPY.
 
-Acabamos de:
+──────────────────────────────────────────────────────────────────────────
+CAMBIO DE ACTIVO: USDJPY → EURUSD  (2026-05-14)
+──────────────────────────────────────────────────────────────────────────
+El 3er activo pasó de USDJPY a EURUSD en TODO el proyecto (symbols.yaml,
+runtime.yaml, README, docs, comentarios, etc.). Razón: decisión del usuario.
+EURUSD conserva el perfil "scalper puro": SCALPER + BB_MR, confluencia 1/1,
+min_rr 0.8, cap 8 trades/día, objetivo ~30/semana.
+Diferencia vs USDJPY: la sesión cambió a 07:00-16:00 UTC (Londres + solape NY,
+la franja fuerte de EURUSD). El símbolo del broker casi siempre es "EURUSD"
+exacto, así que NO debería haber el problema de "símbolo inexistente".
+Verificación: backtest sintético EURUSD → 755 trades, WR 52%, lógica corre OK.
 
-  ✅ Rediseñar el dashboard con cards limpias y formato amigable
-  ✅ Unificar Live + Control en una sola pestaña con datos de cuenta MT5 reales
-     (balance, equity, margen, server, login, apalancamiento)
-  ✅ Traducir todos los códigos técnicos (status, reject reasons) a texto
-     legible en español, con pills de color
-  ✅ Formatear fechas como "Hoy 14:30 UTC" / "Ayer 09:45" / "Lun 12 may"
-  ✅ Añadir nuevo tab "Backtesting" dentro del dashboard:
-       · Form: activos + rango de fechas (desde/hasta) + botón "Correr"
-       · Tabla comparativa con WR, PF, Sharpe, Sortino, SQN, DD, trades/sem
-       · Expander por activo con KPI grid, equity curve, breakdown por
-         estrategia y trade log completo
-       · Download del resumen como .txt
-  ✅ Mejorar `scripts/backtest.py` con:
-       Sharpe, Sortino, SQN, avg win/loss, largest win/loss, rachas más largas,
-       avg bars held, equity curve, parámetro to_date.
-     `backtest_symbol()` ahora es reutilizable desde el dashboard.
+──────────────────────────────────────────────────────────────────────────
+RESULTADOS DEL TUNING #2 (2026-05-14)
+──────────────────────────────────────────────────────────────────────────
+
+XAUUSD M30 — backtest sobre 1 año de DATA REAL:
+  Probé cada estrategia sola y combinada. Hallazgo:
+    · ORB sola          → PIERDE (PF 0.92). Demasiados falsos breakouts.
+    · BB_MR sola        → marginal (PF 1.10).
+    · EMA_MOMENTUM sola → PF 1.51 · WR 41% · E +0.30R · DD 7R · 2.6 tr/sem  ★
+    · Combinarlas BAJA el PF (confluencia a veces elige la peor señal).
+  CONFIG ELEGIDA: EMA_MOMENTUM sola, min_rr 2.2, confluencia 1/1.
+  → trades=105 · WR 40.9% · PF 1.51 · E +0.303R · avgW 2.18R · DD 7R
+
+EURUSD M5 — NO HAY DATA REAL TODAVÍA. Backtest sobre M5 SINTÉTICO:
+  El SCALPER produce trades correctamente: 755 trades, WR 52%, ~15 tr/sem.
+  En data aleatoria da ~breakeven (esperado). La lógica funciona; falta
+  validar y tunear sobre DATA REAL de EURUSD.
+
+──────────────────────────────────────────────────────────────────────────
+⚠  LA VERDAD SOBRE "50-60% WR + RR 1:2-1:3" (decisión importante)
+──────────────────────────────────────────────────────────────────────────
+Esa combinación NO existe en trading sistemático real: implicaría un Profit
+Factor de 2.5 a 4.5. Hay un tradeoff físico:
+   · Estrategias de momentum/breakout → WR 35-45%, wins grandes (RR 2-3)
+   · Estrategias de mean-reversion    → WR 55-65%, wins chicos  (RR 0.6-1)
+EMA_MOMENTUM en oro da 41% WR con RR 2.2 → PF 1.51. Es un sistema SÓLIDO.
+Para tener 55%+ WR habría que aceptar RR ~1:1 (cambiar a mean-reversion puro).
+Recomendación registrada: quedarse con el perfil momentum en oro; el WR de
+41% con PF 1.51 es mejor negocio que 55% WR con PF 1.1.
+Lo mismo aplica al scalper de EURUSD: con RR 0.85 necesita WR > ~54% para
+ser rentable — alcanzable porque el scalper apuesta a hit-rate, no a RR.
+
+──────────────────────────────────────────────────────────────────────────
+EURUSD — QUÉ HACER PARA TENERLO OPERATIVO
+──────────────────────────────────────────────────────────────────────────
+EURUSD existe en prácticamente todo broker con el nombre exacto "EURUSD".
+ACCIÓN (PASO 1 de §11): bajar data real con fetch_history y backtestear.
+Si por algún motivo el broker lo llama distinto, fetch_history ahora avisa
+y sugiere el nombre correcto.
+
+──────────────────────────────────────────────────────────────────────────
+BUGS DE INFRAESTRUCTURA ENCONTRADOS Y CORREGIDOS
+──────────────────────────────────────────────────────────────────────────
+  · Estrategias hardcodeaban rr_target=1.5 → ahora RR dinámico desde cfg.
+  · Backtester no aplicaba RiskManager → ahora aplica RR-min + cap diario +
+    sesión, y reporta señales descartadas por cada causa.
+  · Backtester recalculaba indicadores por ventana (lento, ~2min/año) →
+    ahora los precalcula 1 vez (~6s/año, 20x más rápido).
+  · `future = df_full.iloc[i+1:]` creaba slices gigantes → OOM. Acotado a 250.
+  · Confluencia era global → ahora configurable por activo (build_confluence_for).
+
+ARCHIVOS TOCADOS EN ESTA SESIÓN:
+  · strategies/orb.py, ema_momentum.py, bb_mr.py — RR dinámico desde cfg
+  · strategies/bb_mr.py                  — NUEVA (Bollinger Mean Reversion)
+  · strategies/scalper.py                — 2 gatillos + filtro ema_sep_min
+  · strategies/registry.py               — registra BB_MR
+  · scripts/backtest.py                  — risk filters + precompute + slice OOM fix
+  · scripts/fetch_history.py             — sugiere símbolos cuando uno falla
+  · config/settings.py                   — ConfluenceOverride en SymbolConfig
+  · config/symbols.yaml                  — XAUUSD=EMA_MOMENTUM@2.2 ·
+                                           EURUSD=SCALPER+BB_MR · confluencia x activo
+  · confluence/filter.py                 — build_confluence_for(symbol, settings)
+  · engine/orchestrator.py               — confluencia por activo
+  · dashboard/app.py                     — usa backtest_symbol nueva firma
 
 LO QUE SIGUE INMEDIATAMENTE: ver §11.
-
-ARCHIVOS CLAVE TOCADOS HOY:
-  · dashboard/app.py        — reescrito completo
-  · scripts/backtest.py     — métricas avanzadas
-  · contexto.txt            — este archivo
 
 
 ################################################################################
@@ -117,7 +171,7 @@ Raíz del proyecto:
                       └─ runtime.py: API para leer/escribir overrides
     data_layer/       MT5Client (wrapper oficial MetaTrader5)
     engine/           indicadores + orchestrator (loop principal)
-    strategies/       ORB, VWAP_MR, EMA_MOMENTUM, SCALPER
+    strategies/       ORB, VWAP_MR, EMA_MOMENTUM, SCALPER, BB_MR
                       └─ registry.py mapea nombre → clase
     confluence/       filtro mín-señales + mín-familias
     risk/             RiskManager (caps, kill-switch, lock-outs)
@@ -141,25 +195,38 @@ Raíz del proyecto:
 
 NAS100   — perfil "balanced"
     TF M15  ·  estrategias: ORB + VWAP_MR + EMA_MOMENTUM
+    Confluencia: 2 señales / 2 familias / score ≥ 1.0
     Objetivo: ~8 trades/semana
     Sesión: 13:30–17:00 UTC (cash open NY)
     Risk: 0.5% por trade  ·  daily cap 2%  ·  máx 5 trades/día  ·  RR ≥ 1.5
 
-XAUUSD   — perfil "quality"
+XAUUSD   — perfil "quality"  (config validada en backtest 2026-05-14)
     TF M30 (menos ruido que M15)
-    Estrategias: ORB + EMA_MOMENTUM  (sin VWAP_MR — genera demasiado ruido en oro)
-    Objetivo: ~4 trades/semana con win rate medio-alto
+    Estrategias: EMA_MOMENTUM SOLA — es la única rentable en oro.
+      Backtest: ORB sola pierde (PF 0.92), BB_MR marginal (1.10), combinarlas
+      baja el PF. EMA_MOMENTUM sola = PF 1.51. ORB/BB_MR/VWAP_MR quedan
+      disponibles en el registry pero NO en la lista activa de XAUUSD.
+    Confluencia: 1 señal / 1 familia (solo hay 1 estrategia activa)
+    min_rr_ratio 2.2 → TP1 a 2.2R (RR dinámico)
+    Backtest 1 año: 105 trades · WR 41% · PF 1.51 · E +0.30R · DD 7R · 2.6 tr/sem
     Sesión: 12:00–17:00 UTC (solape Londres + NY)
-    Risk: 0.75% por trade  ·  daily cap 1.5%  ·  máx 2 trades/día  ·  RR ≥ 2.0
-    → cap duro de 2/día garantiza ~4/semana máximo
+    Risk: 0.75% por trade  ·  daily cap 1.5%  ·  máx 2 trades/día
+    NOTA: el WR de 41% es el techo de las estrategias de momentum. 50-60% WR
+    + RR 1:2-1:3 a la vez no existe (ver §03). PF 1.51 es un sistema sólido.
 
-USDJPY   — perfil "scalper"
-    TF M5
-    Estrategias: SCALPER (nueva) + EMA_MOMENTUM
-    Objetivo: ~25 trades/semana, rentable a escala
-    Sesión: 00:00–10:00 UTC (Tokio + apertura Londres)
+EURUSD   — perfil "scalper puro"  (lógica validada, falta data real)
+    TF M5  ·  el par más líquido del mundo → spread bajo, ideal para scalping
+    Estrategias: SCALPER + BB_MR
+    Confluencia PERMISIVA: 1 señal / 1 familia (un scalper no espera a que
+    2 estrategias coincidan en la misma vela)
+    min_rr_ratio 0.8 → SCALPER opera con RR ~0.85 (TP cercano, WR alto compensa)
+    SCALPER tiene filtro ema_sep_min (0.0002, suave) — subirlo tras ver data real
+    Objetivo: ~30 trades/semana, rentable a escala
+    Sesión: 07:00–16:00 UTC (apertura Londres + solape NY, la franja fuerte)
     Risk: 0.25% por trade (más chico, más volumen) · daily cap 1.5% · máx 8/día
-    RR ≥ 1.2 (hit-rate compensa)
+    Backtest SINTÉTICO: 755 trades · WR 52% · ~15 tr/sem · breakeven
+      (esperado en data aleatoria — falta data REAL para validar de verdad)
+    broker_symbol "EURUSD" casi siempre es el nombre exacto en todo broker
 
 
 ################################################################################
@@ -171,7 +238,7 @@ Forma:
     take_trades:
       NAS100: false
       XAUUSD: false
-      USDJPY: false
+      EURUSD: false
 
 Semántica:
     take_trades = ON   → orchestrator respeta cfg.mode del yaml (puede ejecutar)
@@ -282,12 +349,12 @@ streamlit run dashboard/app.py
 
 # Bajar histórico (necesario antes del primer backtest)
 python -m scripts.fetch_history --years 1
-python -m scripts.fetch_history --symbol USDJPY --timeframe M5 --years 2
+python -m scripts.fetch_history --symbol EURUSD --timeframe M5 --years 2
 
 # Backtest desde CLI
 python -m scripts.backtest
 python -m scripts.backtest --symbol XAUUSD --from 2024-01-01 --to 2025-06-30
-python -m scripts.backtest --symbol USDJPY --out logs/bt_usdjpy.txt
+python -m scripts.backtest --symbol EURUSD --out logs/bt_eurusd.txt
 
 # Postmortem manual
 python -m learning.postmortem --week 2026-W19
@@ -299,6 +366,48 @@ pytest
 ################################################################################
 #  §10  CHANGELOG (inverso)
 ################################################################################
+
+[2026-05-14]  Cambio de 3er activo: USDJPY → EURUSD
+    Decisión del usuario. Reemplazo en TODO el proyecto:
+    • config/symbols.yaml — bloque USDJPY → EURUSD, sesión 07:00-16:00 UTC
+                            (franja fuerte de EURUSD). Mismo perfil scalper:
+                            SCALPER+BB_MR, confluencia 1/1, min_rr 0.8, cap 8/día.
+    • config/runtime.yaml, settings.py, signals/schema.py — refs actualizadas
+    • strategies/scalper.py — comentarios → EURUSD
+    • scripts/backtest.py, fetch_history.py, diagnose_mt5.py — ejemplos → EURUSD
+    • README.md, docs/setup-mt5-demo.md — refs → EURUSD
+    Verificación: backtest sintético EURUSD → 755 trades, WR 52%, lógica OK.
+    Nota histórica: USDJPY sí existía en el broker, pero el usuario prefirió
+    EURUSD (más líquido, spread más bajo, mejor para scalping).
+
+[2026-05-14]  Tuning #2 — backtests corridos por Claude, config validada
+    Backtests sobre data real (XAUUSD) + sintética (USDJPY):
+    • config/symbols.yaml — XAUUSD ahora EMA_MOMENTUM SOLA @ min_rr 2.2,
+                            confluencia 1/1 (ORB perdía, combinar bajaba PF).
+                            USDJPY: cap diario 12→8, comentarios de diagnóstico.
+    • strategies/scalper.py — +filtro ema_sep_min (0.0002, suave) + flag
+                            pullback_only. Filtra rangos muertos.
+    • scripts/backtest.py — precalcula indicadores 1 vez (20x más rápido);
+                            `future` slice acotado a 250 velas (arreglo OOM).
+    RESULTADOS: XAUUSD 1 año → PF 1.51, WR 41%, E +0.30R, DD 7R.
+                USDJPY sintético → WR 53.7%, ~24 tr/sem (breakeven, data random).
+
+[2026-05-12]  Tuning #1 — RR dinámico, BB_MR, confluencia por activo
+    Tras leer el primer backtest (XAUUSD breakeven, USDJPY sin datos):
+    • strategies/orb.py, ema_momentum.py — TP1 usa max(rr_propio, cfg.min_rr)
+    • strategies/bb_mr.py     — NUEVA: Bollinger Mean Reversion (familia "mean")
+    • strategies/scalper.py   — reescrito: 2 gatillos, RR ~0.85, filtros sesión
+    • strategies/registry.py  — registra BB_MR
+    • scripts/backtest.py     — aplica RR-min + cap diario + sesión; reporta
+                                señales descartadas; confluencia por activo
+    • scripts/fetch_history.py — sugiere símbolos al fallar uno; resumen OK/fail
+    • config/settings.py      — ConfluenceOverride opcional en SymbolConfig
+    • config/symbols.yaml     — XAUUSD 4 estrategias + confluencia 2/2 + min_rr
+                                2.5; USDJPY SCALPER+BB_MR + confluencia 1/1 +
+                                min_rr 0.8
+    • confluence/filter.py    — build_confluence_for(symbol, settings)
+    • engine/orchestrator.py  — confluencia por activo (dict por símbolo)
+    • dashboard/app.py        — backtest_symbol nueva firma (sin param confluence)
 
 [2026-05-12]  Dashboard 2.0 + métricas avanzadas
     • dashboard/app.py    REWRITE — cards, status traducido, fechas legibles,
@@ -329,22 +438,37 @@ pytest
 #  §11  PRÓXIMOS PASOS
 ################################################################################
 
-INMEDIATO (esta sesión / la próxima)
-    [ ] `git init` + primer commit como punto de restauración local.
-        El .gitignore ya está; el repo NO tiene git inicializado todavía.
-    [ ] Bajar al menos 6-12 meses de histórico:
-            python -m scripts.fetch_history --years 1
-    [ ] Correr el primer backtest end-to-end desde el dashboard nuevo y
-        validar visualmente: cards, equity curve, KPIs, download txt.
-    [ ] Pasar `pytest` para verificar que no se rompió nada al editar
-        orchestrator/settings/registry.
+INMEDIATO (la próxima sesión)
+    [ ] BAJAR DATA REAL DE EURUSD Y BACKTESTEAR (ya no hay problema de símbolo):
+          1. `python -m scripts.fetch_history --symbol EURUSD --timeframe M5 --years 1`
+          2. `python -m scripts.backtest --symbol EURUSD --out logs/bt_eurusd.txt`
+          3. Mandar el .txt a Claude para tunear el SCALPER con DATA REAL.
+        (Si fetch_history avisa que "EURUSD" no existe en tu broker, corre
+         `python -m scripts.diagnose_mt5` y ajusta broker_symbol — raro, pero
+         por las dudas.)
+    [ ] git init + commit + push (ver setup_git.ps1; el push a GitHub ya se
+        intentó esta sesión — ver §10 para el estado).
+        Repo remoto: https://github.com/Frago10/Triarch
+    [ ] RE-CORRER backtest de XAUUSD con la config nueva para confirmar:
+            python -m scripts.backtest --symbol XAUUSD --out logs/bt_xau.txt
+        Esperado (ya verificado por Claude en sandbox):
+          ~105 trades · WR ~41% · PF ~1.51 · E +0.30R · DD ~7R · ~2.6 tr/sem
+    [ ] pytest — verificar que orchestrator/settings/registry no se rompieron.
 
-CORTO PLAZO (esta semana)
-    [ ] Tunear umbrales del SCALPER si baja del objetivo (~25 trades/sem en
-        backtest USDJPY): ajustar atr_min, sl_atr_mult, tp_atr_mult,
-        rel_atr threshold (hoy 0.0005).
-    [ ] Validar que XAUUSD M30 con cap 2/día efectivamente da ~4/semana.
-    [ ] Probar dashboard "Decisiones" — descargar TXT y revisar formato.
+DECISIÓN PENDIENTE DEL USUARIO (sobre el win rate de oro)
+    El objetivo "50-60% WR + RR 1:2-1:3" no es alcanzable (ver §03). Opciones:
+      A) Quedarse con momentum: 41% WR, PF 1.51 — RECOMENDADO, es sólido.
+      B) Cambiar a mean-reversion puro en oro: ~55-60% WR pero RR ~1:1,
+         PF más bajo (~1.1-1.2). Más "cómodo" psicológicamente, peor negocio.
+    → Claude recomienda A. El usuario decide.
+
+CORTO PLAZO (esta semana) — depende del backtest de EURUSD con data real
+    [ ] Tunear SCALPER sobre data REAL de EURUSD:
+        · si <30 tr/sem → bajar rel_atr_min (0.0003) o ema_sep_min (0.0002),
+          o ampliar la sesión (hoy 07:00-16:00 UTC)
+        · si WR <54%   → subir ema_sep_min, o probar pullback_only=True,
+          o ajustar tp_atr_mult/sl_atr_mult
+    [ ] Probar dashboard "Decisiones" y "Backtesting" — validar visualmente.
     [ ] Probar pausar/reanudar con tab "Live & Control" en sesión real.
 
 MEDIO PLAZO (próximas 2-4 semanas)
@@ -379,18 +503,32 @@ SINCRONIZACIÓN VS BASH
     estar stale temporalmente (OneDrive demora unos segundos). Para validar
     sintaxis fiable, usar la lectura del host (Read tool) o esperar y reintentar.
 
-SCALPER — TUNING
-    Filtros actuales:
-      atr_min relativo: 0.0005 (≈ 5 pips USDJPY)
-      sl_atr_mult: 1.0  ·  tp_atr_mult: 1.4  → RR ≈ 1.4
-      pull-back: EMA9 cruzada en la vela actual respecto a la previa
-    Si en backtest da muy pocos trades → bajar atr_min, ampliar pull-back.
-    Si da muchos con WR bajo → subir atr_min, exigir EMA9>EMA21 con sep mayor.
+SCALPER — TUNING (parámetros actuales tras tuning #2)
+      rel_atr_min: 0.0003   ·  sl_atr_mult: 1.0  ·  tp_atr_mult: 0.85 → RR ≈ 0.85
+      ema_sep_min: 0.0002 (suave) ·  max_dist_ema9_atr: 0.6
+      2 gatillos: pull-back (cruce EMA9) + continuación (precio entre EMA9/EMA21)
+      flag pullback_only: si True, desactiva el gatillo de continuación
+    Si en backtest da pocos trades → bajar rel_atr_min o ema_sep_min.
+    Si da muchos con WR bajo → subir ema_sep_min (0.0004-0.0008), o
+      pullback_only=True (el pull-back es el gatillo más fiable).
+    OJO: tunear SOLO sobre data REAL. En sintético (random walk) el SCALPER
+    da ~breakeven por definición; un filtro de tendencia no aporta nada ahí.
 
-XAUUSD — TUNING
-    RR mínimo 2.0 hará que muchos setups se rechacen por risk.
-    Esto es DESEADO (perfil quality). El audit trail va a estar lleno de
-    REJECTED_RISK con motivo "rr_too_low" — no es bug.
+XAUUSD — TUNING (config validada en backtest #2)
+    EMA_MOMENTUM sola @ min_rr 2.2 → PF 1.51, WR 41%, E +0.30R (1 año real).
+    ORB sola pierde plata en oro. Combinar estrategias BAJA el PF (la
+    confluencia a veces elige la señal peor). Menos es más en oro.
+    El techo de WR de las estrategias de momentum es ~40-44%. Para subir el WR
+    habría que cambiar a mean-reversion, sacrificando el RR. Ver §03.
+
+BACKTESTING EN SANDBOX (Claude)
+    Claude puede correr backtests en su sandbox Linux (no necesita MT5, solo
+    los parquet). Para EURUSD, que aún no tiene data real descargada, Claude
+    generó M5 SINTÉTICO solo para validar que la lógica del SCALPER corre — los
+    números de un backtest sintético NO son predictivos, solo confirman que no
+    crashea. Tunear SIEMPRE sobre data real.
+    Bug encontrado y corregido: el backtester recalculaba indicadores por
+    ventana (lentísimo) y `df_full.iloc[i+1:]` creaba slices gigantes (OOM).
 
 DASHBOARD — MT5 EN SUBPROCESO
     Cuando se usa `scripts.serve`, el dashboard corre como subproceso de

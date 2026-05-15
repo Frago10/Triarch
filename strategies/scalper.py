@@ -1,15 +1,17 @@
 """
 Triarch — SCALPER strategy.
 
-Diseñada principalmente para USDJPY en M5/M1. Filosofía:
-  • Muchas operaciones pequeñas, RR moderado (1.2-1.5)
-  • SL/TP definidos en múltiplos de ATR para adaptarse a la volatilidad
-  • Entradas en pull-backs hacia EMA9 mientras EMA9 > EMA21 (tendencia corta)
-  • Filtro de mínima volatilidad: ATR > N pips, evita ranges muertos
-  • Filtro de horario: respeta cfg.session_utc
+Diseñada para EURUSD en M5/M1. Filosofía:
+  • Muchas operaciones, win rate ALTO, RR moderado-bajo (~0.8-1.0)
+  • "Sumar de a pocos": TP cercano que se toca seguido; SL con algo más de aire
+  • Solo opera A FAVOR de la tendencia corta (EMA9 vs EMA21)
+  • Dos gatillos de entrada (más setups que la versión anterior):
+        1. Pull-back: precio cruza de vuelta la EMA9 en la dirección de tendencia
+        2. Continuación: precio descansa entre EMA9 y EMA21 sin romper estructura
+  • Filtros: volatilidad mínima (ATR relativo) + horario de sesión
 
-La idea es rentabilidad a escala: muchos trades semanales con win rate
-medio-alto y costo pequeño por operación.
+Rentabilidad a escala: muchos trades chicos con win rate medio-alto.
+El RR sale ~0.85 — para ser rentable necesita WR > ~54%.
 """
 from __future__ import annotations
 
@@ -23,11 +25,19 @@ class ScalperStrategy(Strategy):
     name = "SCALPER"
     family = "trend"
 
-    # Parámetros (afinables vía features futuras / símbolo)
-    atr_min_pips: float = 5.0       # filtro de volatilidad mínima (en "pips" del par)
-    sl_atr_mult: float = 1.0        # SL = entry - 1.0 * ATR
-    tp_atr_mult: float = 1.4        # TP1 = entry + 1.4 * ATR  → RR ≈ 1.4
-    score_base: float = 0.55
+    # Parámetros (afinables)
+    rel_atr_min: float = 0.0003     # filtro de volatilidad mínima (ATR / precio)
+    sl_atr_mult: float = 1.0        # SL = entry ∓ 1.0 * ATR
+    tp_atr_mult: float = 0.85       # TP1 = entry ± 0.85 * ATR  → RR ≈ 0.85
+    score_base: float = 0.58
+    max_dist_ema9_atr: float = 0.6  # para continuación: qué tan lejos de EMA9 acepta
+    ema_sep_min: float = 0.0002     # separación mínima EMA9/EMA21 (relativa) →
+                                    # filtra rangos muertos. Valor SUAVE por
+                                    # defecto: subirlo (ej. 0.0004-0.0008) tras
+                                    # ver el backtest sobre DATA REAL de EURUSD.
+                                    # En data sintética un filtro fuerte no
+                                    # aporta (no hay tendencias que filtrar).
+    pullback_only: bool = False     # si True, ignora el gatillo de continuación
 
     def evaluate(self, ctx: StrategyContext):
         df = ctx.df
@@ -41,10 +51,7 @@ class ScalperStrategy(Strategy):
 
         # ─── Filtro de sesión ───
         bar_time = last["time"]
-        if isinstance(bar_time, datetime):
-            bt = bar_time
-        else:
-            bt = bar_time.to_pydatetime()
+        bt = bar_time if isinstance(bar_time, datetime) else bar_time.to_pydatetime()
         if bt.tzinfo is None:
             bt = bt.replace(tzinfo=timezone.utc)
         s, e = cfg.session_utc.to_times()
@@ -55,40 +62,61 @@ class ScalperStrategy(Strategy):
 
         # ─── Filtro de volatilidad ───
         atr_val = float(last.get("atr_14") or 0)
-        if atr_val <= 0:
-            return self._make_eval(ctx, detected=False, blocked_by="atr_unavailable"), None
-
-        # Para FX major, 1 pip ≈ 0.01 en USDJPY; para resto 0.0001. Usamos un
-        # umbral relativo al precio para portabilidad.
         price = float(last["close"])
+        if atr_val <= 0 or price <= 0:
+            return self._make_eval(ctx, detected=False, blocked_by="atr_unavailable"), None
         rel_atr = atr_val / price
-        if rel_atr < 0.0005:  # < 5 pips equivalentes
+        if rel_atr < self.rel_atr_min:
             return self._make_eval(ctx, detected=False, blocked_by="atr_too_low"), None
 
-        # ─── Lógica direccional ───
+        # ─── Tendencia corta ───
         ema9 = float(last.get("ema_9") or 0)
         ema21 = float(last.get("ema_21") or 0)
-        prev_close = float(prev["close"])
         if ema9 <= 0 or ema21 <= 0:
             return self._make_eval(ctx, detected=False, blocked_by="ema_unavailable"), None
 
-        # Long: tendencia corta alcista + pull-back a EMA9
-        long_setup = (
-            ema9 > ema21
-            and prev_close < ema9          # vela previa por debajo de EMA9
-            and price > ema9               # cierre actual por encima → reentrada
+        prev_close = float(prev["close"])
+        trend_up = ema9 > ema21
+        trend_dn = ema9 < ema21
+
+        # ─── Filtro de fuerza de tendencia ───
+        # Si EMA9 y EMA21 están casi pegadas, el mercado está en rango → los
+        # pull-backs no tienen continuación. Exigimos separación mínima.
+        ema_sep_rel = abs(ema9 - ema21) / price
+        if ema_sep_rel < self.ema_sep_min:
+            return self._make_eval(ctx, detected=False, blocked_by="trend_too_weak"), None
+
+        # ─── Gatillo 1: pull-back (cruce de vuelta a EMA9) ───
+        long_pullback = trend_up and prev_close < ema9 and price > ema9
+        short_pullback = trend_dn and prev_close > ema9 and price < ema9
+
+        # ─── Gatillo 2: continuación (precio descansa entre EMA9 y EMA21) ───
+        dist_ema9 = abs(price - ema9) / atr_val
+        long_cont = (
+            trend_up and price > ema21 and price <= ema9
+            and dist_ema9 <= self.max_dist_ema9_atr
         )
-        # Short: simétrico
-        short_setup = (
-            ema9 < ema21
-            and prev_close > ema9
-            and price < ema9
+        short_cont = (
+            trend_dn and price < ema21 and price >= ema9
+            and dist_ema9 <= self.max_dist_ema9_atr
         )
+
+        if self.pullback_only:
+            long_cont = short_cont = False
+        long_setup = long_pullback or long_cont
+        short_setup = short_pullback or short_cont
 
         if not (long_setup or short_setup):
             return self._make_eval(ctx, detected=False, blocked_by="no_pullback"), None
+        # Si por algún borde se activan ambos, no operamos (ambiguo)
+        if long_setup and short_setup:
+            return self._make_eval(ctx, detected=False, blocked_by="ambiguous"), None
 
         direction = Direction.LONG if long_setup else Direction.SHORT
+        trigger = (
+            "pullback" if (long_pullback or short_pullback) else "continuation"
+        )
+
         if direction == Direction.LONG:
             entry = price
             sl = entry - self.sl_atr_mult * atr_val
@@ -101,25 +129,23 @@ class ScalperStrategy(Strategy):
         risk_pts = abs(entry - sl)
         reward_pts = abs(entry - tp1)
         rr = reward_pts / risk_pts if risk_pts > 0 else 0
-        if rr < cfg.risk.min_rr_ratio:
-            return (
-                self._make_eval(
-                    ctx, detected=True, direction=direction, proposed_entry=entry,
-                    blocked_by="below_min_rr", blocked_detail=f"rr={rr:.2f}",
-                ),
-                None,
-            )
 
-        # Score: base + bonus por separación EMA y RSI saludable
+        # OJO: el scalper acepta RR < 1 a propósito. El gate de cfg.risk.min_rr_ratio
+        # se aplica fuera (orchestrator/backtester). EURUSD tiene min_rr bajo.
+        if rr <= 0:
+            return self._make_eval(ctx, detected=False, blocked_by="invalid_risk"), None
+
+        # ─── Score ───
         rsi_val = float(last.get("rsi_14") or 50)
         rsi_bonus = 0.0
-        if direction == Direction.LONG and 50 < rsi_val < 70:
+        if direction == Direction.LONG and 48 < rsi_val < 68:
             rsi_bonus = 0.1
-        elif direction == Direction.SHORT and 30 < rsi_val < 50:
+        elif direction == Direction.SHORT and 32 < rsi_val < 52:
             rsi_bonus = 0.1
         ema_sep = abs(ema9 - ema21) / price
-        ema_bonus = min(0.15, ema_sep * 200)  # más separación = más conviction
-        score = min(1.0, self.score_base + rsi_bonus + ema_bonus)
+        ema_bonus = min(0.15, ema_sep * 200)
+        trigger_bonus = 0.05 if trigger == "pullback" else 0.0  # pull-back algo más fiable
+        score = min(1.0, self.score_base + rsi_bonus + ema_bonus + trigger_bonus)
 
         sig = Signal(
             symbol=cfg.name,
@@ -141,6 +167,7 @@ class ScalperStrategy(Strategy):
             features={
                 "ema9": ema9, "ema21": ema21, "rsi": rsi_val,
                 "rel_atr": rel_atr, "ema_sep": ema_sep,
+                "trigger": trigger, "dist_ema9_atr": dist_ema9,
             },
         )
         ev = self._make_eval(

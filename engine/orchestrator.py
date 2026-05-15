@@ -22,7 +22,7 @@ from audit.obsidian_writer import ObsidianWriter
 from audit.store import AuditStore
 from config.runtime import get_take_trades
 from config.settings import ExecutionMode, SymbolConfig, TriarchSettings, get_settings, get_symbols
-from confluence.filter import ConfluenceConfig, ConfluenceFilter
+from confluence.filter import ConfluenceFilter, build_confluence_for
 from data_layer.mt5_client import MT5Client
 from engine.indicators import add_default_indicators, opening_range
 from executor.factory import build_executor
@@ -44,13 +44,12 @@ class Orchestrator:
         self.mt5_client = mt5_client
         self.settings = settings or get_settings()
         self.symbols = get_symbols()
-        self.confluence = ConfluenceFilter(
-            ConfluenceConfig(
-                min_signals=self.settings.triarch_confluence_min_signals,
-                min_families=self.settings.triarch_confluence_min_families,
-                min_combined_score=self.settings.triarch_confluence_min_score,
-            )
-        )
+        # Confluencia por activo: el perfil scalper usa una permisiva, el
+        # quality una exigente. Ver confluence.build_confluence_for.
+        self.confluence_by_symbol: dict[str, ConfluenceFilter] = {
+            name: build_confluence_for(cfg, self.settings)
+            for name, cfg in self.symbols.items()
+        }
         self.store = AuditStore()
         self.writer = ObsidianWriter(self.settings.obsidian_vault_path)
         self.notifiers: list[Notifier] = build_default_notifiers()
@@ -122,8 +121,12 @@ class Orchestrator:
         if not signals:
             return
 
-        # Confluence
-        decision = self.confluence.filter(signals)
+        # Confluence (por activo)
+        confluence = self.confluence_by_symbol.get(cfg.name)
+        if confluence is None:
+            confluence = build_confluence_for(cfg, self.settings)
+            self.confluence_by_symbol[cfg.name] = confluence
+        decision = confluence.filter(signals)
         if not decision.accepted:
             for s in decision.rejected_signals or signals:
                 s.status = SignalStatus.REJECTED_CONFLUENCE

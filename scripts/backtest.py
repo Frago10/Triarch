@@ -18,7 +18,7 @@ Métricas que reporta:
 Uso:
     python -m scripts.backtest                                    # todos los activos
     python -m scripts.backtest --symbol XAUUSD --from 2024-01-01
-    python -m scripts.backtest --symbol USDJPY --to 2025-06-30 --out logs/bt.txt
+    python -m scripts.backtest --symbol EURUSD --to 2025-06-30 --out logs/bt.txt
 
 Usable también desde Python (ej. dashboard):
     from scripts.backtest import backtest_symbol
@@ -36,8 +36,8 @@ from typing import Iterable
 import pandas as pd
 from loguru import logger
 
-from config.settings import REPO_ROOT, SymbolConfig, get_settings, get_symbols
-from confluence.filter import ConfluenceConfig, ConfluenceFilter
+from config.settings import REPO_ROOT, SymbolConfig, TriarchSettings, get_settings, get_symbols
+from confluence.filter import build_confluence_for
 from engine.indicators import add_default_indicators, opening_range
 from signals.schema import Direction, Signal
 from strategies.base import StrategyContext
@@ -126,11 +126,15 @@ def _sqn(returns: pd.Series) -> float:
 # ─────────────────────────────────────────────────────────
 def backtest_symbol(
     cfg: SymbolConfig,
-    confluence: ConfluenceFilter,
+    settings: TriarchSettings | None = None,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
     bar_lookback: int = 300,
 ) -> dict:
+    settings = settings or get_settings()
+    # Confluencia por activo (perfil scalper permisivo, quality exigente)
+    confluence = build_confluence_for(cfg, settings)
+
     parquet_path = HISTORY_DIR / f"{cfg.name}_{cfg.timeframe}.parquet"
     if not parquet_path.exists():
         return {
@@ -155,13 +159,34 @@ def backtest_symbol(
     trades: list[dict] = []
     seen_signal_keys: set[str] = set()
 
+    # ─── Optimización: precalcular indicadores UNA sola vez sobre el df completo.
+    #     EMA/ATR/RSI/BB y el opening-range son acumulativos → calcularlos sobre
+    #     el df entero y luego slicear es ~100x más rápido (y más correcto cerca
+    #     de los bordes) que recalcular por ventana en cada iteración. ───
+    try:
+        df_ind = add_default_indicators(df_full)
+        df_ind = opening_range(df_ind, minutes=15).reset_index(drop=True)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "symbol": cfg.name, "timeframe": cfg.timeframe,
+            "error": f"Fallo al calcular indicadores: {exc}",
+        }
+
+    # ─── Risk gating: replica (de forma simplificada) lo que hace el RiskManager
+    #     en runtime, para que el backtest no muestre más trades de los que el
+    #     bot real tomaría. Aplica: RR mínimo + cap de trades por día + sesión. ───
+    min_rr = cfg.risk.min_rr_ratio
+    max_trades_day = cfg.risk.max_trades_per_day
+    sess_start, sess_end = cfg.session_utc.to_times()
+    trades_by_day: dict = {}
+    skipped = {"min_rr": 0, "daily_cap": 0, "out_of_window": 0}
+
+    def _in_session(ts) -> bool:
+        t = ts.time() if hasattr(ts, "time") else ts
+        return (sess_start <= t <= sess_end) if sess_start <= sess_end else (t >= sess_start or t <= sess_end)
+
     for i in range(WARMUP_BARS, len(df_full) - 1):
-        window = df_full.iloc[max(0, i - bar_lookback) : i + 1].copy()
-        try:
-            window = add_default_indicators(window)
-            window = opening_range(window, minutes=15)
-        except Exception:
-            continue
+        window = df_ind.iloc[max(0, i - bar_lookback) : i + 1]
 
         ctx = StrategyContext(symbol_cfg=cfg, df=window)
         sigs: list[Signal] = []
@@ -182,12 +207,33 @@ def backtest_symbol(
 
         chosen = decision.chosen_signal
         bar_time = window.iloc[-1]["time"]
+
+        # ─── Filtro 1: fuera de sesión ───
+        if not _in_session(bar_time):
+            skipped["out_of_window"] += 1
+            continue
+
+        # ─── Filtro 2: RR por debajo del mínimo del símbolo ───
+        if chosen.rr_ratio < min_rr:
+            skipped["min_rr"] += 1
+            continue
+
+        # ─── Filtro 3: cap de trades por día ───
+        day_key = pd.Timestamp(bar_time).date()
+        if trades_by_day.get(day_key, 0) >= max_trades_day:
+            skipped["daily_cap"] += 1
+            continue
+
         dedup_key = f"{chosen.strategy}|{chosen.direction.value}|{bar_time}"
         if dedup_key in seen_signal_keys:
             continue
         seen_signal_keys.add(dedup_key)
 
-        future = df_full.iloc[i + 1 :]
+        trades_by_day[day_key] = trades_by_day.get(day_key, 0) + 1
+
+        # Solo las próximas ~250 velas alcanzan para resolver el trade (max_bars=200).
+        # Slicear acotado evita crear copias gigantes del df en cada trade (OOM).
+        future = df_full.iloc[i + 1 : i + 251]
         if future.empty:
             break
         outcome = _resolve_trade(chosen, future)
@@ -209,7 +255,13 @@ def backtest_symbol(
     if not trades:
         return {
             "symbol": cfg.name, "timeframe": cfg.timeframe, "trades": 0,
-            "note": "Sin señales que pasaran confluencia en el rango.",
+            "note": (
+                "Sin señales que pasaran todos los filtros. "
+                f"Descartadas: {skipped['min_rr']} por RR<{min_rr}, "
+                f"{skipped['daily_cap']} por cap diario, "
+                f"{skipped['out_of_window']} fuera de sesión."
+            ),
+            "skipped": skipped,
             "trade_log": [], "equity_curve": [],
         }
 
@@ -269,6 +321,7 @@ def backtest_symbol(
             "from": str(df_t["time"].min()),
             "to": str(df_t["time"].max()),
         },
+        "skipped": skipped,
         "trades": int(len(df_t)),
         "wins": wins,
         "losses": losses,
@@ -323,6 +376,12 @@ def _format_summary(results: list[dict], from_date, to_date) -> str:
         lines.append(f"   avg win={r['avg_win_r']:+.3f}R  avg loss={r['avg_loss_r']:+.3f}R  largest +{r['largest_win_r']:+.2f} / {r['largest_loss_r']:+.2f}R")
         lines.append(f"   max DD={r['max_drawdown_r']}R  rachas: +{r['longest_win_streak']} / -{r['longest_loss_streak']}  avg duración={r['avg_bars_held']} velas")
         lines.append(f"   trades/semana ≈ {r['trades_per_week_avg']} (objetivo {r['target_trades_wk']})")
+        sk = r.get("skipped") or {}
+        if sk:
+            lines.append(
+                f"   descartadas por filtros: RR-bajo={sk.get('min_rr',0)}  "
+                f"cap-diario={sk.get('daily_cap',0)}  fuera-sesión={sk.get('out_of_window',0)}"
+            )
         for sname, s in (r.get("by_strategy") or {}).items():
             lines.append(f"     · {sname}: {int(s['trades'])} trades  E={s['expectancy_r']:+.3f}R  total={s['total_r']:+.2f}R")
     return "\n".join(lines)
@@ -351,14 +410,6 @@ def main() -> int:
     else:
         targets = list(symbols.values())
 
-    confluence = ConfluenceFilter(
-        ConfluenceConfig(
-            min_signals=settings.triarch_confluence_min_signals,
-            min_families=settings.triarch_confluence_min_families,
-            min_combined_score=settings.triarch_confluence_min_score,
-        )
-    )
-
     from_date = (
         datetime.fromisoformat(args.from_date).replace(tzinfo=timezone.utc)
         if args.from_date else None
@@ -369,7 +420,7 @@ def main() -> int:
     )
 
     results = [
-        backtest_symbol(cfg, confluence, from_date=from_date, to_date=to_date)
+        backtest_symbol(cfg, settings, from_date=from_date, to_date=to_date)
         for cfg in targets
     ]
 

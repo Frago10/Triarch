@@ -50,7 +50,7 @@ class Signal(BaseModel):
     timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # ─── Origen ───
-    symbol: str                  # NAS100 | XAUUSD | USDJPY
+    symbol: str                  # NAS100 | XAUUSD | EURUSD
     timeframe: str               # M15, H1, etc.
     strategy: str                # ORB | VWAP_MR | ...
     family: str                  # opening | trend | mean | levels | structural

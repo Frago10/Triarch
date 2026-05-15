@@ -118,6 +118,11 @@ class EMAMomentumStrategy(Strategy):
             )
 
         # ─── Niveles ───
+        # RR efectivo: respeta cfg.risk.min_rr_ratio del símbolo si es más alto
+        cfg_min_rr = ctx.symbol_cfg.risk.min_rr_ratio
+        rr_target_eff = max(self.rr_target, cfg_min_rr)
+        rr_target_tp2_eff = max(self.rr_target_tp2, rr_target_eff + 1.0)
+
         # Swing low/high reciente
         recent = df.tail(10)
         if direction == Direction.LONG:
@@ -126,16 +131,16 @@ class EMAMomentumStrategy(Strategy):
             entry = close
             risk_pts = entry - sl_candidate
             stop_loss = sl_candidate
-            take_profit_1 = entry + self.rr_target * risk_pts
-            take_profit_2 = entry + self.rr_target_tp2 * risk_pts
+            take_profit_1 = entry + rr_target_eff * risk_pts
+            take_profit_2 = entry + rr_target_tp2_eff * risk_pts
         else:
             swing_high = recent["high"].max()
             sl_candidate = max(ema_50 + self.sl_atr_buffer * atr, swing_high + 0.1 * atr)
             entry = close
             risk_pts = sl_candidate - entry
             stop_loss = sl_candidate
-            take_profit_1 = entry - self.rr_target * risk_pts
-            take_profit_2 = entry - self.rr_target_tp2 * risk_pts
+            take_profit_1 = entry - rr_target_eff * risk_pts
+            take_profit_2 = entry - rr_target_tp2_eff * risk_pts
 
         if risk_pts <= 0:
             return self._make_eval(ctx, detected=False, blocked_by="invalid_risk"), None

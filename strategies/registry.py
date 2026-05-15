@@ -6,6 +6,7 @@ Mapping nombre → clase. Permite que symbols.yaml liste estrategias por nombre.
 from __future__ import annotations
 
 from strategies.base import Strategy
+from strategies.bb_mr import BBMeanReversionStrategy
 from strategies.ema_momentum import EMAMomentumStrategy
 from strategies.orb import ORBStrategy
 from strategies.scalper import ScalperStrategy
@@ -16,6 +17,7 @@ REGISTRY: dict[str, type[Strategy]] = {
     "VWAP_MR": VWAPMeanReversionStrategy,
     "EMA_MOMENTUM": EMAMomentumStrategy,
     "SCALPER": ScalperStrategy,
+    "BB_MR": BBMeanReversionStrategy,
 }
 
 

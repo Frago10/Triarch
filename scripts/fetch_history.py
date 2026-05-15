@@ -12,7 +12,7 @@ Uso:
     python -m scripts.fetch_history --symbol XAUUSD --timeframe M30 --from 2024-01-01
 
     # Sobreescribe TF del yaml
-    python -m scripts.fetch_history --symbol USDJPY --timeframe M5 --years 2
+    python -m scripts.fetch_history --symbol EURUSD --timeframe M5 --years 2
 """
 from __future__ import annotations
 
@@ -34,6 +34,20 @@ def _parquet_path(symbol: str, timeframe: str) -> Path:
     return HISTORY_DIR / f"{symbol}_{timeframe}.parquet"
 
 
+def _suggest_symbols(client: MT5Client, broker_symbol: str) -> list[str]:
+    """Busca en MT5 símbolos parecidos al pedido (mismo prefijo de 3 letras)."""
+    try:
+        import MetaTrader5 as mt5  # type: ignore
+    except ImportError:
+        return []
+    all_syms = mt5.symbols_get()
+    if not all_syms:
+        return []
+    prefix = broker_symbol[:3].upper()
+    matches = [s.name for s in all_syms if prefix in s.name.upper()]
+    return sorted(matches)[:15]
+
+
 def fetch_one(
     client: MT5Client,
     name: str,
@@ -49,7 +63,21 @@ def fetch_one(
         from_date=from_date,
     )
     if df.empty:
-        logger.warning(f"   {name}: MT5 devolvió 0 velas. Revisa Market Watch / fechas.")
+        logger.warning(
+            f"   ❌ {name}: MT5 devolvió 0 velas para el símbolo '{broker_symbol}'."
+        )
+        suggestions = _suggest_symbols(client, broker_symbol)
+        if suggestions:
+            logger.warning(
+                f"   💡 Símbolos parecidos disponibles en tu broker: {suggestions}\n"
+                f"      → Edita 'broker_symbol' de {name} en config/symbols.yaml con el correcto."
+            )
+        else:
+            logger.warning(
+                f"   💡 No se encontró ningún símbolo parecido a '{broker_symbol}'.\n"
+                f"      Corre `python -m scripts.diagnose_mt5` para ver la lista completa,\n"
+                f"      o abre el símbolo en el Market Watch de MT5 (click derecho → Mostrar todo)."
+            )
         return 0
 
     df = df.sort_values("time").reset_index(drop=True)
@@ -102,15 +130,27 @@ def main() -> int:
         return 1
 
     total = 0
+    ok_syms: list[str] = []
+    fail_syms: list[str] = []
     try:
         for name, cfg in targets.items():
             tf = args.timeframe or cfg.timeframe
-            total += fetch_one(client, name, cfg.broker_symbol, tf, from_date)
+            n = fetch_one(client, name, cfg.broker_symbol, tf, from_date)
+            total += n
+            (ok_syms if n > 0 else fail_syms).append(name)
     finally:
         client.shutdown()
 
+    logger.info("─" * 60)
     logger.info(f"Listo. Velas nuevas descargadas: {total}. Carpeta: {HISTORY_DIR}")
-    return 0
+    if ok_syms:
+        logger.info(f"✅ OK: {ok_syms}")
+    if fail_syms:
+        logger.warning(
+            f"❌ Sin datos: {fail_syms}  → revisa los 'broker_symbol' en symbols.yaml "
+            f"(ver sugerencias arriba)."
+        )
+    return 0 if not fail_syms else 2
 
 
 if __name__ == "__main__":

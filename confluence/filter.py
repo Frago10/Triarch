@@ -102,3 +102,32 @@ class ConfluenceFilter:
             rejected_signals=[s for s in group if s.signal_id != chosen.signal_id],
             reason="ok",
         )
+
+
+# ─────────────────────────────────────────────────────────
+# Builder por símbolo
+# ─────────────────────────────────────────────────────────
+def build_confluence_for(symbol_cfg, settings) -> "ConfluenceFilter":
+    """
+    Construye un ConfluenceFilter para un activo.
+
+    Si el símbolo define un bloque `confluence` en symbols.yaml, lo usa.
+    Si no, cae a los defaults globales del .env (settings.triarch_confluence_*).
+
+    Esto permite que el perfil scalper tenga confluencia permisiva (1 señal)
+    mientras que el perfil quality la tenga exigente (2 señales / 2 familias).
+    """
+    ov = getattr(symbol_cfg, "confluence", None)
+    if ov is not None:
+        cfg = ConfluenceConfig(
+            min_signals=ov.min_signals,
+            min_families=ov.min_families,
+            min_combined_score=ov.min_combined_score,
+        )
+    else:
+        cfg = ConfluenceConfig(
+            min_signals=settings.triarch_confluence_min_signals,
+            min_families=settings.triarch_confluence_min_families,
+            min_combined_score=settings.triarch_confluence_min_score,
+        )
+    return ConfluenceFilter(cfg)

@@ -156,7 +156,7 @@ def main() -> int:
             )
 
     # ─── Paso 6: símbolos ───
-    step(6, "Test de símbolos (NAS100, XAUUSD, USDJPY)")
+    step(6, "Test de símbolos (NAS100, XAUUSD, EURUSD)")
     from config.settings import get_symbols
     syms = get_symbols()
     table = Table()

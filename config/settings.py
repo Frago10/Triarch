@@ -106,8 +106,21 @@ class PositionSizing(BaseModel):
     fixed_lots: float | None = None
 
 
+class ConfluenceOverride(BaseModel):
+    """
+    Confluencia por activo. Si un símbolo no la define, se usan los defaults
+    globales del .env.
+      • Perfil quality  → exigente: 2 señales / 2 familias.
+      • Perfil scalper  → permisivo: 1 señal basta (un scalper no puede
+        esperar a que 2 estrategias coincidan en la misma vela).
+    """
+    min_signals: int = 2
+    min_families: int = 2
+    min_combined_score: float = 1.0
+
+
 class SymbolConfig(BaseModel):
-    name: str  # clave canónica (NAS100, XAUUSD, USDJPY)
+    name: str  # clave canónica (NAS100, XAUUSD, EURUSD)
     broker_symbol: str
     description: str = ""
     family: str  # index | commodity | fx
@@ -119,6 +132,7 @@ class SymbolConfig(BaseModel):
     session_utc: SessionWindow
     risk: RiskOverride = Field(default_factory=RiskOverride)
     position_sizing: PositionSizing = Field(default_factory=PositionSizing)
+    confluence: ConfluenceOverride | None = None   # None → usa defaults del .env
     strategies: list[str] = Field(default_factory=list)
 
 

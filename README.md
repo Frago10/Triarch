@@ -1,12 +1,12 @@
 # Triarch Bot
 
-> Bot de trading sistemático sobre **MetaTrader 5**, multi-activo (NAS100, XAUUSD, USDJPY), multi-estrategia con capa de confluencia y 3 modos de ejecución por activo.
+> Bot de trading sistemático sobre **MetaTrader 5**, multi-activo (NAS100, XAUUSD, EURUSD), multi-estrategia con capa de confluencia y 3 modos de ejecución por activo.
 
 **Vault note:** [[../../../01 - Projects/Proyecto - Triarch Bot (MT5 Multi-Asset)]]
 
 ## ¿Por qué "Triarch"?
 
-- **3 activos** — NAS100, XAUUSD, USDJPY
+- **3 activos** — NAS100, XAUUSD, EURUSD
 - **3 modos de ejecución** — SIGNAL_ONLY, APPROVAL, AUTO (configurable por activo)
 - **3 capas de aprendizaje** — postmortem LLM → ML clásico → RL
 
@@ -86,7 +86,7 @@ NAS100:
   mode: SIGNAL_ONLY
 XAUUSD:
   mode: APPROVAL
-USDJPY:
+EURUSD:
   mode: AUTO
 ```
 
