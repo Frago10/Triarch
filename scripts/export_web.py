@@ -1,10 +1,13 @@
 """
 Triarch — exporta el estado actual del bot a JSON estático para el front-end web.
 
-Genera el archivo `docs/data/state.json` que el dashboard estático
-(`docs/index.html`, servido desde GitHub Pages) consume para renderizar
-las 5 pestañas (Inicio · Vivo & Control · Decisiones · Backtesting · Datos)
-sin necesidad de un backend en producción.
+Genera el archivo `data/state.json` (raíz del repo) que el dashboard estático
+(`index.html`, servido desde GitHub Pages con la configuración por defecto:
+Source = main branch root) consume para renderizar las 5 pestañas
+(Inicio · Vivo & Control · Decisiones · Backtesting · Datos) sin backend.
+
+Por compatibilidad, también escribe un mirror en `docs/data/state.json`
+para setups que configuren GH Pages para servir desde /docs.
 
 Qué exporta:
   · settings        — env, default_mode, conf_min_*, kill switch
@@ -41,7 +44,12 @@ from config.runtime import get_take_trades
 from config.settings import get_settings, get_symbols
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUT = REPO_ROOT / "docs" / "data" / "state.json"
+# Salida en la RAÍZ del repo — es donde vive index.html para que GitHub Pages
+# lo sirva con la configuración por defecto (Source = root del branch main).
+DEFAULT_OUT = REPO_ROOT / "data" / "state.json"
+# Mirror opcional dentro de /docs/data/ por compatibilidad con setups que
+# configuren GH Pages para servir desde /docs.
+MIRROR_OUT = REPO_ROOT / "docs" / "data" / "state.json"
 BACKTEST_CACHE = REPO_ROOT / "data_cache" / "backtest_last.json"
 
 
@@ -163,12 +171,17 @@ def export_state(
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        json.dumps(payload, indent=2, default=str, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    body = json.dumps(payload, indent=2, default=str, ensure_ascii=False)
+    out_path.write_text(body, encoding="utf-8")
+    # Mirror a /docs/data/ por si el repo configura GH Pages para servir desde /docs
+    if out_path.resolve() != MIRROR_OUT.resolve():
+        try:
+            MIRROR_OUT.parent.mkdir(parents=True, exist_ok=True)
+            MIRROR_OUT.write_text(body, encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"[export_web] No se pudo escribir mirror {MIRROR_OUT}: {exc}")
     logger.info(
-        f"[export_web] Escrito {out_path}  ·  "
+        f"[export_web] Escrito {out_path}  (+ mirror {MIRROR_OUT.name})  ·  "
         f"{len(signals_out)} signals  ·  {len(evals_out)} evals  ·  "
         f"{len(backtest_results)} backtest results  ·  "
         f"account={'yes' if account else 'no'}"

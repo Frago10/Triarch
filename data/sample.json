@@ -1,0 +1,246 @@
+{
+    "meta": {
+        "generated_at": "2026-05-20T10:30:00Z",
+        "is_sample": true,
+        "note": "Datos sintéticos de muestra para mostrar el dashboard sin un export real."
+    },
+    "settings": {
+        "env": "demo",
+        "default_mode": "SIGNAL_ONLY",
+        "conf_min_signals": 2,
+        "conf_min_families": 2,
+        "conf_min_score": 0.5,
+        "kill": false
+    },
+    "account": {
+        "login": 5099887766,
+        "server": "RoboForex-ECN",
+        "name": "Demo Account",
+        "currency": "USD",
+        "balance": 10000.00,
+        "equity": 10247.35,
+        "margin": 482.10,
+        "free_margin": 9765.25,
+        "leverage": 500
+    },
+    "symbols": {
+        "NAS100": {
+            "broker_symbol": "NAS100",
+            "description": "US100 — índice tecnológico",
+            "profile": "index_breakout",
+            "timeframe": "M15",
+            "mode": "SIGNAL_ONLY",
+            "take_trades": true,
+            "take_trades_live": true,
+            "session_start": "13:30",
+            "session_end": "20:00",
+            "strategies": ["ORB", "EMA_MOMENTUM", "VWAP_MR"]
+        },
+        "XAUUSD": {
+            "broker_symbol": "XAUUSD",
+            "description": "Oro contra dólar",
+            "profile": "quality_momentum",
+            "timeframe": "M30",
+            "mode": "APPROVAL",
+            "take_trades": true,
+            "take_trades_live": true,
+            "session_start": "08:00",
+            "session_end": "21:00",
+            "strategies": ["EMA_MOMENTUM", "BB_MR"]
+        },
+        "EURUSD": {
+            "broker_symbol": "EURUSD",
+            "description": "Euro contra dólar — scalper",
+            "profile": "fx_scalper",
+            "timeframe": "M5",
+            "mode": "AUTO",
+            "take_trades": false,
+            "take_trades_live": false,
+            "session_start": "07:00",
+            "session_end": "16:00",
+            "strategies": ["SCALPER", "EMA_MOMENTUM"]
+        }
+    },
+    "signals": [
+        {
+            "signal_id": "s-2026-05-20-001",
+            "timestamp_utc": "2026-05-20T09:45:00Z",
+            "symbol": "NAS100", "strategy": "ORB", "direction": "LONG",
+            "entry": 18452.5, "stop_loss": 18412.0, "take_profit_1": 18540.0,
+            "rr_ratio": 2.16, "score": 0.74, "confidence": 0.68,
+            "status": "PLACED", "reject_reason": null, "pnl_money": null
+        },
+        {
+            "signal_id": "s-2026-05-20-002",
+            "timestamp_utc": "2026-05-20T08:30:00Z",
+            "symbol": "XAUUSD", "strategy": "EMA_MOMENTUM", "direction": "SHORT",
+            "entry": 2342.18, "stop_loss": 2348.40, "take_profit_1": 2330.50,
+            "rr_ratio": 1.88, "score": 0.81, "confidence": 0.72,
+            "status": "CLOSED_TP1", "reject_reason": null, "pnl_money": 142.30
+        },
+        {
+            "signal_id": "s-2026-05-20-003",
+            "timestamp_utc": "2026-05-20T07:15:00Z",
+            "symbol": "EURUSD", "strategy": "SCALPER", "direction": "LONG",
+            "entry": 1.08542, "stop_loss": 1.08490, "take_profit_1": 1.08586,
+            "rr_ratio": 0.85, "score": 0.61, "confidence": 0.55,
+            "status": "REJECTED_CONFLUENCE",
+            "reject_reason": "min_signals: solo SCALPER detectó setup",
+            "pnl_money": null
+        },
+        {
+            "signal_id": "s-2026-05-20-004",
+            "timestamp_utc": "2026-05-19T20:10:00Z",
+            "symbol": "NAS100", "strategy": "EMA_MOMENTUM", "direction": "SHORT",
+            "entry": 18380.0, "stop_loss": 18420.0, "take_profit_1": 18305.0,
+            "rr_ratio": 1.88, "score": 0.69, "confidence": 0.63,
+            "status": "CLOSED_SL", "reject_reason": null, "pnl_money": -85.00
+        },
+        {
+            "signal_id": "s-2026-05-20-005",
+            "timestamp_utc": "2026-05-19T15:00:00Z",
+            "symbol": "XAUUSD", "strategy": "BB_MR", "direction": "LONG",
+            "entry": 2335.50, "stop_loss": 2331.00, "take_profit_1": 2346.00,
+            "rr_ratio": 2.33, "score": 0.78, "confidence": 0.70,
+            "status": "CLOSED_TP1", "reject_reason": null, "pnl_money": 198.50
+        },
+        {
+            "signal_id": "s-2026-05-20-006",
+            "timestamp_utc": "2026-05-19T11:20:00Z",
+            "symbol": "EURUSD", "strategy": "EMA_MOMENTUM", "direction": "LONG",
+            "entry": 1.08410, "stop_loss": 1.08365, "take_profit_1": 1.08490,
+            "rr_ratio": 1.78, "score": 0.66, "confidence": 0.58,
+            "status": "REJECTED_RISK",
+            "reject_reason": "rr_too_low: rr=1.78 < min=2.00 (post-spread)",
+            "pnl_money": null
+        },
+        {
+            "signal_id": "s-2026-05-20-007",
+            "timestamp_utc": "2026-05-18T14:30:00Z",
+            "symbol": "NAS100", "strategy": "VWAP_MR", "direction": "LONG",
+            "entry": 18290.0, "stop_loss": 18260.0, "take_profit_1": 18345.0,
+            "rr_ratio": 1.83, "score": 0.72, "confidence": 0.66,
+            "status": "CLOSED_TP1", "reject_reason": null, "pnl_money": 110.00
+        },
+        {
+            "signal_id": "s-2026-05-20-008",
+            "timestamp_utc": "2026-05-18T09:00:00Z",
+            "symbol": "XAUUSD", "strategy": "EMA_MOMENTUM", "direction": "LONG",
+            "entry": 2328.00, "stop_loss": 2322.50, "take_profit_1": 2340.00,
+            "rr_ratio": 2.18, "score": 0.83, "confidence": 0.74,
+            "status": "CLOSED_TP1", "reject_reason": null, "pnl_money": 220.00
+        },
+        {
+            "signal_id": "s-2026-05-20-009",
+            "timestamp_utc": "2026-05-17T18:45:00Z",
+            "symbol": "EURUSD", "strategy": "SCALPER", "direction": "SHORT",
+            "entry": 1.08620, "stop_loss": 1.08670, "take_profit_1": 1.08580,
+            "rr_ratio": 0.80, "score": 0.55, "confidence": 0.50,
+            "status": "CLOSED_SL", "reject_reason": null, "pnl_money": -40.00
+        },
+        {
+            "signal_id": "s-2026-05-20-010",
+            "timestamp_utc": "2026-05-17T10:15:00Z",
+            "symbol": "NAS100", "strategy": "ORB", "direction": "LONG",
+            "entry": 18205.0, "stop_loss": 18170.0, "take_profit_1": 18270.0,
+            "rr_ratio": 1.86, "score": 0.77, "confidence": 0.70,
+            "status": "CLOSED_TP1", "reject_reason": null, "pnl_money": 130.00
+        }
+    ],
+    "evals": [
+        {
+            "timestamp_utc": "2026-05-20T09:45:00Z",
+            "symbol": "NAS100", "strategy": "ORB", "direction": "LONG",
+            "score": 0.74, "passed": true, "note": "Confluencia 2/3 OK"
+        },
+        {
+            "timestamp_utc": "2026-05-20T09:45:00Z",
+            "symbol": "NAS100", "strategy": "EMA_MOMENTUM", "direction": "LONG",
+            "score": 0.61, "passed": true, "note": "Tendencia M15 alineada"
+        },
+        {
+            "timestamp_utc": "2026-05-20T09:30:00Z",
+            "symbol": "EURUSD", "strategy": "SCALPER", "direction": null,
+            "score": 0.0, "passed": false, "note": "atr_too_low"
+        }
+    ],
+    "backtest_results": [
+        {
+            "symbol": "NAS100",
+            "trades": 84,
+            "win_rate": 0.46,
+            "profit_factor": 1.42,
+            "expectancy_r": 0.182,
+            "sharpe_ratio": 1.21,
+            "sortino_ratio": 1.78,
+            "sqn": 1.95,
+            "max_drawdown_r": -4.20,
+            "avg_win_r": 1.78,
+            "avg_loss_r": -1.00,
+            "longest_win_streak": 6,
+            "longest_loss_streak": 4,
+            "trades_per_week_avg": 1.6,
+            "by_strategy": {
+                "ORB":          { "trades": 38, "expectancy_r": 0.215, "total_r": 8.17 },
+                "EMA_MOMENTUM": { "trades": 28, "expectancy_r": 0.143, "total_r": 4.00 },
+                "VWAP_MR":      { "trades": 18, "expectancy_r": 0.190, "total_r": 3.42 }
+            },
+            "equity_curve": [
+                { "time": "2025-05-20T00:00:00Z", "cum_r": 0 },
+                { "time": "2025-06-20T00:00:00Z", "cum_r": 1.8 },
+                { "time": "2025-07-20T00:00:00Z", "cum_r": 2.4 },
+                { "time": "2025-08-20T00:00:00Z", "cum_r": 1.6 },
+                { "time": "2025-09-20T00:00:00Z", "cum_r": 4.1 },
+                { "time": "2025-10-20T00:00:00Z", "cum_r": 5.8 },
+                { "time": "2025-11-20T00:00:00Z", "cum_r": 7.2 },
+                { "time": "2025-12-20T00:00:00Z", "cum_r": 9.5 },
+                { "time": "2026-01-20T00:00:00Z", "cum_r": 11.3 },
+                { "time": "2026-02-20T00:00:00Z", "cum_r": 12.1 },
+                { "time": "2026-03-20T00:00:00Z", "cum_r": 13.8 },
+                { "time": "2026-04-20T00:00:00Z", "cum_r": 14.6 },
+                { "time": "2026-05-20T00:00:00Z", "cum_r": 15.29 }
+            ],
+            "trade_log": [
+                { "time": "2026-05-19T20:10:00Z", "strategy": "EMA_MOMENTUM", "direction": "SHORT", "entry": 18380.0, "sl": 18420.0, "tp1": 18305.0, "rr_planned": 1.88, "score": 0.69, "outcome": "SL", "bars_held": 8, "pnl_r": -1.00 },
+                { "time": "2026-05-18T14:30:00Z", "strategy": "VWAP_MR",      "direction": "LONG",  "entry": 18290.0, "sl": 18260.0, "tp1": 18345.0, "rr_planned": 1.83, "score": 0.72, "outcome": "TP1", "bars_held": 12, "pnl_r": 1.83 },
+                { "time": "2026-05-17T10:15:00Z", "strategy": "ORB",          "direction": "LONG",  "entry": 18205.0, "sl": 18170.0, "tp1": 18270.0, "rr_planned": 1.86, "score": 0.77, "outcome": "TP1", "bars_held": 6, "pnl_r": 1.86 }
+            ]
+        },
+        {
+            "symbol": "XAUUSD",
+            "trades": 41,
+            "win_rate": 0.41,
+            "profit_factor": 1.51,
+            "expectancy_r": 0.30,
+            "sharpe_ratio": 1.05,
+            "sortino_ratio": 1.62,
+            "sqn": 1.74,
+            "max_drawdown_r": -3.80,
+            "avg_win_r": 2.20,
+            "avg_loss_r": -1.00,
+            "longest_win_streak": 4,
+            "longest_loss_streak": 3,
+            "trades_per_week_avg": 0.8,
+            "by_strategy": {
+                "EMA_MOMENTUM": { "trades": 41, "expectancy_r": 0.30, "total_r": 12.3 }
+            },
+            "equity_curve": [
+                { "time": "2025-05-20T00:00:00Z", "cum_r": 0 },
+                { "time": "2025-08-20T00:00:00Z", "cum_r": 2.4 },
+                { "time": "2025-11-20T00:00:00Z", "cum_r": 5.6 },
+                { "time": "2026-02-20T00:00:00Z", "cum_r": 8.9 },
+                { "time": "2026-05-20T00:00:00Z", "cum_r": 12.3 }
+            ],
+            "trade_log": [
+                { "time": "2026-05-20T08:30:00Z", "strategy": "EMA_MOMENTUM", "direction": "SHORT", "entry": 2342.18, "sl": 2348.40, "tp1": 2330.50, "rr_planned": 1.88, "score": 0.81, "outcome": "TP1", "bars_held": 10, "pnl_r": 1.88 },
+                { "time": "2026-05-19T15:00:00Z", "strategy": "BB_MR",        "direction": "LONG",  "entry": 2335.50, "sl": 2331.00, "tp1": 2346.00, "rr_planned": 2.33, "score": 0.78, "outcome": "TP1", "bars_held": 14, "pnl_r": 2.33 },
+                { "time": "2026-05-18T09:00:00Z", "strategy": "EMA_MOMENTUM", "direction": "LONG",  "entry": 2328.00, "sl": 2322.50, "tp1": 2340.00, "rr_planned": 2.18, "score": 0.83, "outcome": "TP1", "bars_held": 9, "pnl_r": 2.18 }
+            ]
+        },
+        {
+            "symbol": "EURUSD",
+            "trades": 0,
+            "note": "Sin histórico real descargado para EURUSD M5. Corre python -m scripts.fetch_history --symbol EURUSD --years 1."
+        }
+    ]
+}

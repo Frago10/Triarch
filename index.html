@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f0f12">
+    <meta name="description" content="Triarch — bot de trading sistemático MT5 multi-activo. Dashboard estático en rojo y negro para hosting en GitHub Pages.">
+    <title>Triarch · MT5 multi-asset bot</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="./assets/css/styles.css">
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ef4444'/%3E%3Cstop offset='100%25' stop-color='%23b91c1c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='%23090909'/%3E%3Cpath d='M16 5l9 16H7z' fill='url(%23g)'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- ═══════════════ Splash ═══════════════ -->
+<section class="splash" id="splash">
+    <div class="splash-inner">
+        <div class="splash-brand">TRIARCH</div>
+        <div class="splash-tag">
+            Bot sistemático sobre MetaTrader 5 — multi-activo, multi-estrategia,
+            con auditoría forense de cada decisión.
+        </div>
+        <div class="splash-points">
+            <div class="splash-point">
+                <div class="icon">🎯</div>
+                <div class="text"><b>3 activos</b> con perfiles distintos: NAS100 (índice), XAUUSD (calidad), EURUSD (scalper).</div>
+            </div>
+            <div class="splash-point">
+                <div class="icon">🧠</div>
+                <div class="text"><b>5 estrategias</b> con confluencia configurable por activo: ORB, EMA_MOMENTUM, VWAP_MR, BB_MR, SCALPER.</div>
+            </div>
+            <div class="splash-point">
+                <div class="icon">🔒</div>
+                <div class="text"><b>3 modos de ejecución</b>: solo señal, aprobación humana, o automático — toggle live por activo.</div>
+            </div>
+            <div class="splash-point">
+                <div class="icon">📊</div>
+                <div class="text"><b>Backtesting integrado</b> con Sharpe, Sortino, SQN, equity curve y trade log filtrable.</div>
+            </div>
+        </div>
+        <button class="btn btn-primary btn-block" id="splash-enter">Entrar al bot &nbsp;→</button>
+    </div>
+</section>
+
+<!-- ═══════════════ Layout ═══════════════ -->
+<div class="layout">
+
+    <!-- ─── Sidebar ─── -->
+    <aside class="sidebar">
+        <div class="side-brand">TRIARCH</div>
+        <div class="side-tag">MT5 multi-asset bot</div>
+
+        <div class="side-block">
+            <div class="label">Entorno</div>
+            <div class="value" id="side-env">— DESCONOCIDO</div>
+        </div>
+
+        <div class="side-block">
+            <div class="label">Cuenta MT5</div>
+            <div id="side-account"><div class="value"><span class="dot dot-gray"></span> Cargando…</div></div>
+        </div>
+
+        <div class="side-block">
+            <div class="label">Kill switch global</div>
+            <div id="side-kill"><div class="value"><span class="dot dot-gray"></span> Cargando…</div></div>
+        </div>
+
+        <div class="side-block">
+            <div class="label">Atajos (CLI local)</div>
+            <div class="side-mini" style="margin-top:6px"><code>python -m scripts.diagnose_mt5</code></div>
+            <div class="side-mini"><code>python -m scripts.fetch_history</code></div>
+            <div class="side-mini"><code>python -m scripts.backtest</code></div>
+            <div class="side-mini"><code>python -m scripts.export_web</code></div>
+        </div>
+
+        <div class="side-footer">v0.4 · UI v4 · Crimson Black · static</div>
+    </aside>
+
+    <!-- ─── Main ─── -->
+    <main class="main">
+
+        <div class="header">
+            <h1 class="title">🤖 <span class="accent">TRIARCH</span> Bot</h1>
+            <div class="subtitle" id="header-subtitle">Cargando configuración…</div>
+            <div class="side-mini" id="header-stamp" style="margin-top:8px"></div>
+        </div>
+
+        <div class="banner info" id="data-source-banner" style="display:none">
+            ℹ Mostrando <b>datos de muestra</b>. Para ver datos reales del bot,
+            genera <code>docs/data/state.json</code> con <code>python -m scripts.export_web</code> y vuelve a desplegar.
+        </div>
+
+        <!-- ═══ Tabs ═══ -->
+        <div class="tabs">
+            <button class="tab active" data-tab="home">🏠 Inicio</button>
+            <button class="tab" data-tab="live">🎯 Vivo & Control</button>
+            <button class="tab" data-tab="decisions">🧠 Decisiones</button>
+            <button class="tab" data-tab="backtest">📊 Backtesting</button>
+            <button class="tab" data-tab="data">📦 Datos</button>
+        </div>
+
+        <!-- ═══ Tab 1 — Inicio ═══ -->
+        <section class="tab-panel active" data-panel="home">
+            <h2 class="section-title">Resumen del día</h2>
+            <p class="section-caption">Vista rápida de lo que está pasando ahora mismo.</p>
+
+            <div class="metric-row" id="home-account-metrics"></div>
+
+            <hr class="section-divider">
+
+            <h3 class="section-title">Actividad últimas 24 horas</h3>
+            <div class="kpi-grid" id="home-kpis"></div>
+
+            <hr class="section-divider">
+
+            <h3 class="section-title">Estado de cada activo</h3>
+            <div class="assets-row" id="home-assets"></div>
+            <p class="section-caption" style="margin-top:16px">
+                Para tomar acciones (toggles, filtros) ir a las otras pestañas.
+            </p>
+        </section>
+
+        <!-- ═══ Tab 2 — Vivo & Control ═══ -->
+        <section class="tab-panel" data-panel="live">
+            <h2 class="section-title">Cuenta conectada</h2>
+            <div class="metric-row" id="live-account-metrics"></div>
+            <p class="section-caption" id="live-account-caption"></p>
+
+            <hr class="section-divider">
+
+            <h3 class="section-title">Activos</h3>
+            <p class="section-caption">
+                Cada tarjeta resume el estado de un activo. El switch <b>Trades reales en MT5</b>
+                se controla desde <code>config/runtime.yaml</code>; en la web se ve en modo lectura
+                (refleja el último snapshot exportado).
+            </p>
+            <div id="live-assets"></div>
+
+            <hr class="section-divider">
+
+            <h3 class="section-title">Kill switch global</h3>
+            <p class="section-caption">
+                Para parar TODO de golpe: setea <code>TRIARCH_KILL=1</code> en <code>.env</code> y reinicia el
+                proceso. El orchestrator chequea esto en cada tick y omite cualquier ejecución.
+            </p>
+        </section>
+
+        <!-- ═══ Tab 3 — Decisiones ═══ -->
+        <section class="tab-panel" data-panel="decisions">
+            <h2 class="section-title">Por qué SÍ / por qué NO</h2>
+            <p class="section-caption">
+                Vista legible del audit trail. Pensada para revisar el día a día sin
+                tener que descifrar códigos técnicos.
+            </p>
+
+            <div class="filter-bar">
+                <div class="filter">
+                    <label>Activo</label>
+                    <select id="dec-symbol"></select>
+                </div>
+                <div class="filter">
+                    <label>Estrategia</label>
+                    <select id="dec-strategy"></select>
+                </div>
+                <div class="filter">
+                    <label>Estado</label>
+                    <select id="dec-status">
+                        <option value="">(todos)</option>
+                        <option value="taken">✅ Tomadas</option>
+                        <option value="rejected">❌ Rechazadas</option>
+                        <option value="closed">🏁 Cerradas</option>
+                        <option value="new">🆕 Pendientes</option>
+                    </select>
+                </div>
+                <div class="filter">
+                    <label>Últimos N días</label>
+                    <input type="number" id="dec-days" value="30" min="1" max="365">
+                </div>
+            </div>
+
+            <div class="filter" style="margin-bottom:16px">
+                <label>Dirección</label>
+                <div class="radio-row" id="dec-dir-group">
+                    <label><input type="radio" name="dec-dir" value="all" checked> (todas)</label>
+                    <label><input type="radio" name="dec-dir" value="LONG"> LONG</label>
+                    <label><input type="radio" name="dec-dir" value="SHORT"> SHORT</label>
+                </div>
+            </div>
+
+            <div class="kpi-grid" id="dec-kpis"></div>
+
+            <div id="dec-table-wrap"></div>
+
+            <div style="margin-top:14px">
+                <button class="btn" id="dec-download">⬇ Descargar como .txt</button>
+            </div>
+        </section>
+
+        <!-- ═══ Tab 4 — Backtesting ═══ -->
+        <section class="tab-panel" data-panel="backtest">
+            <h2 class="section-title">Backtesting sobre histórico cacheado</h2>
+            <p class="section-caption">
+                Esta es una <b>vista de resultados</b>: la corrida real ocurre en local
+                con <code>python -m scripts.backtest</code> y se exporta a JSON vía
+                <code>python -m scripts.export_web</code>. La web muestra el último snapshot.
+            </p>
+
+            <div id="bt-results"></div>
+        </section>
+
+        <!-- ═══ Tab 5 — Datos ═══ -->
+        <section class="tab-panel" data-panel="data">
+            <h2 class="section-title">Datos crudos</h2>
+            <div class="subtabs">
+                <button class="subtab active" data-subgroup="data" data-subtab="signals">📈 Signals (cruda)</button>
+                <button class="subtab" data-subgroup="data" data-subtab="evals">🔍 Evals (audit)</button>
+                <button class="subtab" data-subgroup="data" data-subtab="stats">📦 Stats (agregados)</button>
+            </div>
+
+            <div class="subtab-panel active" data-subgroup="data" data-subtab="signals">
+                <h3 class="section-title">Tabla cruda de señales</h3>
+                <p class="section-caption">Vista sin traducciones — útil para debugging o exportar a otra herramienta.</p>
+                <div class="filter" style="max-width:280px">
+                    <label>Activo</label>
+                    <select id="sig-symbol"></select>
+                </div>
+                <div id="sig-table-wrap" style="margin-top:14px"></div>
+            </div>
+
+            <div class="subtab-panel" data-subgroup="data" data-subtab="evals" style="display:none">
+                <h3 class="section-title">Audit trail — cada evaluación de estrategia</h3>
+                <p class="section-caption">Toda evaluación por vela queda registrada aquí, incluyendo las que no produjeron señal.</p>
+                <div class="filter" style="max-width:280px">
+                    <label>Activo</label>
+                    <select id="evals-symbol"></select>
+                </div>
+                <div id="evals-table-wrap" style="margin-top:14px"></div>
+            </div>
+
+            <div class="subtab-panel" data-subgroup="data" data-subtab="stats" style="display:none">
+                <h3 class="section-title">Agregados de los últimos 30 días</h3>
+                <div id="stats-by-sym"></div>
+                <div id="stats-by-strat" style="margin-top:18px"></div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script src="./assets/js/app.js"></script>
+</body>
+</html>
