@@ -77,8 +77,36 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 
 Fecha: 2026-05-14
 
-ESTAMOS EN: tras el tuning #2, se cambió el 3er activo de USDJPY → EURUSD
-(decisión del usuario). EURUSD usa el MISMO perfil scalper que tenía USDJPY.
+ESTAMOS EN: 3er activo cambiado a EURUSD + arreglado el bug de descarga de
+histórico que hacía que los pares en M5 (forex) devolvieran 0 velas.
+
+──────────────────────────────────────────────────────────────────────────
+FIX: DESCARGA DE HISTÓRICO EN M5 (forex devolvía 0 velas)  (2026-05-14)
+──────────────────────────────────────────────────────────────────────────
+SÍNTOMA: USDJPY y luego EURUSD no devolvían data en el backtest, pero
+NAS100 (M15) y XAUUSD (M30) sí. El usuario lo notó: "raro que el par no
+muestre data".
+
+CAUSA RAÍZ: data_layer/mt5_client.get_rates hacía UNA sola llamada gigante a
+`mt5.copy_rates_range(symbol, tf, from_date, now)`. MT5 solo devuelve lo que
+está en la caché local del terminal; para M5 a 1 año (~75k velas) esa caché
+casi nunca cubre todo → copy_rates_range devuelve VACÍO (no parcial, vacío).
+Con M15/M30 el rango es chico (~17k / ~8k velas) y sí está en caché.
+NO era un problema de "símbolo inexistente" ni de que fuera forex — era
+M5 + rango largo en una sola llamada.
+
+FIX APLICADO en data_layer/mt5_client.py:
+  · get_rates ahora descarga EN CHUNKS (~5000 velas por chunk: M5≈17 días,
+    M15≈52d, M30≈104d) y concatena.
+  · Cada chunk se pide con reintentos (_rates_range_retry): MT5 baja el
+    histórico async, así que la 1ª llamada puede venir vacía y disparar la
+    descarga; las siguientes ya traen datos.
+  · Modo "live" (from_date=None) usa _rates_pos_retry, también con reintentos.
+  · Si TODOS los chunks vienen vacíos → mensaje claro: o el símbolo no existe,
+    o hay que abrir el gráfico en MT5 y hacer scroll atrás para que baje
+    history, y re-correr (fetch_history es incremental).
+  · fetch_history.py: mensajes de error actualizados (distingue "símbolo mal"
+    de "history no bajado").
 
 ──────────────────────────────────────────────────────────────────────────
 CAMBIO DE ACTIVO: USDJPY → EURUSD  (2026-05-14)
@@ -88,8 +116,7 @@ runtime.yaml, README, docs, comentarios, etc.). Razón: decisión del usuario.
 EURUSD conserva el perfil "scalper puro": SCALPER + BB_MR, confluencia 1/1,
 min_rr 0.8, cap 8 trades/día, objetivo ~30/semana.
 Diferencia vs USDJPY: la sesión cambió a 07:00-16:00 UTC (Londres + solape NY,
-la franja fuerte de EURUSD). El símbolo del broker casi siempre es "EURUSD"
-exacto, así que NO debería haber el problema de "símbolo inexistente".
+la franja fuerte de EURUSD).
 Verificación: backtest sintético EURUSD → 755 trades, WR 52%, lógica corre OK.
 
 ──────────────────────────────────────────────────────────────────────────
@@ -251,33 +278,61 @@ Para parar TODO de golpe (no por activo): TRIARCH_KILL=1 en .env + reinicio.
 
 
 ################################################################################
-#  §07  DASHBOARD — PESTAÑAS Y CONTRATOS
+#  §07  DASHBOARD — UI v3 (rediseño visual)
 ################################################################################
 
-Streamlit, 6 pestañas:
+Streamlit con paleta dark moderna (cyan/violet accents, glassmorphism, pills
+translúcidas con borde, hover en cards).
 
-  1. 🔴 Live & Control
-       · Bloque de cuenta MT5: balance, equity, margen usado/libre,
-         apalancamiento, server, login, titular
+ARRANQUE:
+  Splash de bienvenida (1 vez por sesión, gated por st.session_state) con
+  resumen del proyecto y botón "Entrar al bot". Se omite en visitas siguientes.
+
+SIDEBAR (siempre visible):
+  · Wordmark TRIARCH con gradient cyan→violet
+  · Bloque "Entorno" con dot de color (DEMO=verde, LIVE=naranja)
+  · Bloque "Cuenta MT5": login + server + equity + P/L flotante (color)
+  · Bloque "Kill switch global": estado + cómo activarlo
+  · Atajos: comandos CLI más usados
+  · Footer: versión
+
+TABS TOP-LEVEL (5):
+  1. 🏠 Inicio — resumen ejecutivo del día
+       · 4 KPIs de cuenta (balance, equity con delta, margen libre, apalanc.)
+       · Actividad 24h: señales totales, tomadas, rechazadas, cerradas, P/L
+       · Mini-card por activo con dot de estado + última señal
+
+  2. 🎯 Vivo & Control
+       · Bloque cuenta MT5 con 5 métricas
        · Una tarjeta por activo: perfil, TF, sesión, toggle take_trades,
          última señal con fecha legible + status traducido + motivo
 
-  2. 🧠 Decisiones
-       · Vista legible del audit trail
-       · Filtros: activo, estrategia, estado (Tomadas/Rechazadas/Cerradas/
-         Pendientes), dirección, últimos N días
-       · Tabla con columnas amigables; descarga como .txt
+  3. 🧠 Decisiones
+       · Vista legible del audit trail con filtros (activo/estrategia/estado/
+         dirección/últimos N días)
+       · KPI grid arriba (encontradas, tomadas, rechazadas, cerradas)
+       · Tabla con columnas amigables; descarga .txt
 
-  3. 📊 Backtesting
+  4. 📊 Backtesting
        · Form: activos múltiples + rango fechas + botón "Correr"
        · Tabla comparativa con WR/PF/Sharpe/Sortino/SQN/DD/trades-sem
-       · Expander por activo con KPI grid, equity curve, breakdown por
-         estrategia, trade log
+       · Expander por activo con KPI grid (12 métricas), equity curve,
+         breakdown por estrategia, trade log
        · Download resumen .txt
 
-  4. 📈 Signals  — tabla cruda (debug)
-  5. 🔍 Evals    — audit trail crudo (debug)
-  6. 📦 Stats    — agregados últimos 30 días
+  5. 📦 Datos — sub-tabs (vista cruda para debug/export):
+       · 📈 Signals — tabla cruda
+       · 🔍 Evals   — audit trail crudo
+       · 📦 Stats   — agregados últimos 30 días
+
+PALETA Y COMPONENTES:
+  · Acento principal: cyan #5eead4 (vars CSS --tri-accent)
+  · Acento 2:        violeta #a78bfa (gradients, wordmark)
+  · Cards:           glassmorphism rgba(38,39,48,0.55) + blur(4px)
+  · Status pills:    translúcidas con borde sutil del mismo tono
+  · Dots:            con halo box-shadow del color (verde/rojo/naranja/gris)
+  · Hover:           border-color animado + translateY(-2px) en KPIs
+  · Empty states:    centrado, emoji, mensaje útil
 
 DEPENDENCIAS:
   · MT5Client: el dashboard intenta conectarse para mostrar cuenta. Si falla,
@@ -367,6 +422,31 @@ pytest
 #  §10  CHANGELOG (inverso)
 ################################################################################
 
+[2026-05-14]  Dashboard UI v3 — splash + sidebar + tabs reorganizadas
+    Rediseño visual del dashboard sin perder funcionalidad:
+    • Splash de bienvenida con wordmark TRIARCH (gradient cyan→violet) y
+      tarjeta de 4 puntos. Gated por st.session_state["intro_done"].
+    • Sidebar nuevo: branding + entorno + cuenta MT5 (equity, P/L flotante) +
+      kill switch + atajos CLI + versión.
+    • Header con banner gradient sutil.
+    • Tabs reorganizadas: 6 → 5 top-level. Nueva pestaña "🏠 Inicio" con
+      resumen del día (KPIs cuenta + actividad 24h + mini-cards por activo).
+      Signals/Evals/Stats consolidados en "📦 Datos" como sub-tabs.
+    • CSS modernizado: glassmorphism (rgba bg + backdrop-filter), pills
+      translúcidas con borde, hover en cards/KPIs, dots con halo,
+      empty states con emoji.
+    • Variables CSS centralizadas (--tri-accent, --tri-card-bg, etc.).
+
+[2026-05-14]  Fix — descarga de histórico en M5 (forex devolvía 0 velas)
+    • data_layer/mt5_client.py — get_rates ahora descarga EN CHUNKS con
+      reintentos (antes: 1 sola llamada a copy_rates_range que fallaba en
+      M5 + rangos largos). +helpers _rates_range_retry / _rates_pos_retry.
+      +constante _BARS_PER_DAY para dimensionar los chunks.
+    • scripts/fetch_history.py — mensajes de error que distinguen "símbolo
+      incorrecto" de "histórico no bajado en el terminal".
+    Causa raíz: copy_rates_range solo devuelve lo cacheado por el terminal;
+    M5 a 1 año (~75k velas) no entra → vacío. M15/M30 sí entraban.
+
 [2026-05-14]  Cambio de 3er activo: USDJPY → EURUSD
     Decisión del usuario. Reemplazo en TODO el proyecto:
     • config/symbols.yaml — bloque USDJPY → EURUSD, sesión 07:00-16:00 UTC
@@ -439,16 +519,16 @@ pytest
 ################################################################################
 
 INMEDIATO (la próxima sesión)
-    [ ] BAJAR DATA REAL DE EURUSD Y BACKTESTEAR (ya no hay problema de símbolo):
+    [ ] BAJAR DATA REAL DE EURUSD Y BACKTESTEAR (el bug de M5 ya está arreglado
+        — ver §03; ahora descarga en chunks):
           1. `python -m scripts.fetch_history --symbol EURUSD --timeframe M5 --years 1`
+             → si avisa "0 velas / histórico no bajado": abre el gráfico de
+               EURUSD M5 en MT5, scroll hacia atrás, y RE-CORRE el comando
+               (es incremental, cada pasada baja más).
           2. `python -m scripts.backtest --symbol EURUSD --out logs/bt_eurusd.txt`
           3. Mandar el .txt a Claude para tunear el SCALPER con DATA REAL.
-        (Si fetch_history avisa que "EURUSD" no existe en tu broker, corre
-         `python -m scripts.diagnose_mt5` y ajusta broker_symbol — raro, pero
-         por las dudas.)
-    [ ] git init + commit + push (ver setup_git.ps1; el push a GitHub ya se
-        intentó esta sesión — ver §10 para el estado).
-        Repo remoto: https://github.com/Frago10/Triarch
+    [ ] git_push.ps1 — commitear y pushear esta versión (incluye el fix de
+        descarga M5 + el cambio a EURUSD). Repo: https://github.com/Frago10/Triarch
     [ ] RE-CORRER backtest de XAUUSD con la config nueva para confirmar:
             python -m scripts.backtest --symbol XAUUSD --out logs/bt_xau.txt
         Esperado (ya verificado por Claude en sandbox):
@@ -520,6 +600,19 @@ XAUUSD — TUNING (config validada en backtest #2)
     confluencia a veces elige la señal peor). Menos es más en oro.
     El techo de WR de las estrategias de momentum es ~40-44%. Para subir el WR
     habría que cambiar a mean-reversion, sacrificando el RR. Ver §03.
+
+DESCARGA DE HISTÓRICO MT5 — copy_rates_range y el problema de M5
+    `mt5.copy_rates_range(symbol, tf, from, to)` NO es fiable en una sola
+    llamada para rangos grandes: solo devuelve lo que el terminal tiene en
+    caché local. M5 a 1 año ≈ 75k velas → casi nunca está cacheado → devuelve
+    VACÍO. M15/M30 a 1 año (~17k / ~8k velas) sí entran, por eso NAS100 y
+    XAUUSD bajaban bien y los pares forex en M5 no.
+    SOLUCIÓN (ya implementada en get_rates): descargar en chunks chicos
+    (~5000 velas c/u) con reintentos. MT5 baja history async — la 1ª llamada
+    puede venir vacía y disparar la descarga, las siguientes traen datos.
+    Si aun así un símbolo viene vacío: abrir su gráfico en MT5 en ese TF,
+    hacer scroll hacia atrás para forzar la descarga, y re-correr fetch_history
+    (es incremental). O usar un rango más corto.
 
 BACKTESTING EN SANDBOX (Claude)
     Claude puede correr backtests en su sandbox Linux (no necesita MT5, solo

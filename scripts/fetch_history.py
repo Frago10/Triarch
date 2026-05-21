@@ -64,19 +64,26 @@ def fetch_one(
     )
     if df.empty:
         logger.warning(
-            f"   ❌ {name}: MT5 devolvió 0 velas para el símbolo '{broker_symbol}'."
+            f"   ❌ {name}: MT5 devolvió 0 velas para '{broker_symbol}' {timeframe}."
         )
         suggestions = _suggest_symbols(client, broker_symbol)
-        if suggestions:
+        if suggestions and broker_symbol not in suggestions:
+            # El símbolo NO existe con ese nombre exacto → problema de nombre.
             logger.warning(
-                f"   💡 Símbolos parecidos disponibles en tu broker: {suggestions}\n"
-                f"      → Edita 'broker_symbol' de {name} en config/symbols.yaml con el correcto."
+                f"   💡 '{broker_symbol}' no existe, pero sí estos parecidos: {suggestions}\n"
+                f"      → Edita 'broker_symbol' de {name} en config/symbols.yaml."
             )
         else:
+            # El símbolo SÍ existe (o no se pudo verificar) → es history no bajado.
+            # Típico en M5 + rangos largos: el terminal no tiene la caché.
             logger.warning(
-                f"   💡 No se encontró ningún símbolo parecido a '{broker_symbol}'.\n"
-                f"      Corre `python -m scripts.diagnose_mt5` para ver la lista completa,\n"
-                f"      o abre el símbolo en el Market Watch de MT5 (click derecho → Mostrar todo)."
+                f"   💡 El símbolo parece existir, pero el terminal no tiene el "
+                f"histórico {timeframe} bajado todavía.\n"
+                f"      SOLUCIÓN: en MT5 abre el gráfico de {broker_symbol} en {timeframe}, "
+                f"haz scroll hacia atrás\n"
+                f"      hasta cargar el rango que quieres, y vuelve a correr este script.\n"
+                f"      Es INCREMENTAL: cada pasada baja más histórico. También puedes\n"
+                f"      probar un rango más corto (--years 1 en vez de 2)."
             )
         return 0
 
@@ -147,8 +154,11 @@ def main() -> int:
         logger.info(f"✅ OK: {ok_syms}")
     if fail_syms:
         logger.warning(
-            f"❌ Sin datos: {fail_syms}  → revisa los 'broker_symbol' en symbols.yaml "
-            f"(ver sugerencias arriba)."
+            f"❌ Sin datos: {fail_syms}\n"
+            f"   Dos causas posibles (ver detalle arriba por activo):\n"
+            f"   1) broker_symbol incorrecto → corregir en symbols.yaml\n"
+            f"   2) histórico no bajado en el terminal → abrir el gráfico, hacer\n"
+            f"      scroll atrás, y RE-CORRER este script (es incremental)."
         )
     return 0 if not fail_syms else 2
 

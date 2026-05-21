@@ -8,9 +8,10 @@ puede correr en modo MOCK para tests.
 from __future__ import annotations
 
 import sys
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterator
 
 import pandas as pd
@@ -43,6 +44,13 @@ if MT5_AVAILABLE:
         "H4": mt5.TIMEFRAME_H4,
         "D1": mt5.TIMEFRAME_D1,
     }
+
+# Velas aproximadas por día, por timeframe. Se usa para dimensionar los chunks
+# de descarga (ver MT5Client.get_rates). Asume ~24h de mercado (FX/CFD).
+_BARS_PER_DAY: dict[str, int] = {
+    "M1": 1440, "M5": 288, "M15": 96, "M30": 48,
+    "H1": 24, "H4": 6, "D1": 1,
+}
 
 
 @dataclass
@@ -219,6 +227,32 @@ class MT5Client:
     # ─────────────────────────────────────────────────────
     # Velas (candles)
     # ─────────────────────────────────────────────────────
+    # ── Helpers internos de descarga (con reintentos) ───────────────────
+    def _rates_range_retry(self, broker_symbol, tf, start, end, retries: int = 4):
+        """
+        copy_rates_range con reintentos. MT5 baja el histórico de forma
+        ASÍNCRONA: la 1ª llamada para un símbolo/TF cuya history no está en
+        caché suele devolver vacío y disparar la descarga; las siguientes ya
+        traen datos. Por eso reintentamos con una espera creciente.
+        """
+        rates = None
+        for attempt in range(retries):
+            rates = mt5.copy_rates_range(broker_symbol, tf, start, end)
+            if rates is not None and len(rates) > 0:
+                return rates
+            time.sleep(0.4 * (attempt + 1))   # darle tiempo al terminal a bajar
+        return rates  # puede venir None o vacío
+
+    def _rates_pos_retry(self, broker_symbol, tf, n_bars, retries: int = 4):
+        """copy_rates_from_pos con reintentos (mismo motivo async que arriba)."""
+        rates = None
+        for attempt in range(retries):
+            rates = mt5.copy_rates_from_pos(broker_symbol, tf, 0, n_bars)
+            if rates is not None and len(rates) > 0:
+                return rates
+            time.sleep(0.4 * (attempt + 1))
+        return rates
+
     def get_rates(
         self,
         broker_symbol: str,
@@ -227,9 +261,20 @@ class MT5Client:
         from_date: datetime | None = None,
     ) -> pd.DataFrame:
         """
-        Obtiene las últimas `n_bars` velas. Si `from_date` se especifica, trae
-        velas desde esa fecha hasta ahora (independiente de n_bars).
-        Devuelve DataFrame con columnas: time, open, high, low, close, tick_volume, spread, real_volume.
+        Obtiene velas de MT5. Dos modos:
+          • from_date=None  → últimas `n_bars` velas (modo "live" del orchestrator).
+          • from_date dado  → rango [from_date, ahora], descargado EN CHUNKS.
+
+        ⚠ Por qué chunks: `copy_rates_range` en UNA sola llamada falla (devuelve
+        vacío) con rangos grandes — sobre todo en M5 — porque MT5 solo entrega lo
+        que está en la caché local del terminal y esa caché no cubre, p.ej., un
+        año de M5 (~75k velas). Esto explicaba que NAS100 (M15) y XAUUSD (M30)
+        bajaran bien pero EURUSD/USDJPY (M5) devolvieran 0 velas.
+        Pidiendo en trozos chicos cada request entra en caché y, además, fuerza
+        al terminal a ir bajando el histórico que falta.
+
+        Devuelve DataFrame con: time, open, high, low, close, tick_volume,
+        spread, real_volume.
         """
         if not MT5_AVAILABLE:
             logger.warning("MT5 no disponible — devolviendo DataFrame vacío")
@@ -243,18 +288,64 @@ class MT5Client:
             logger.warning(f"No se pudo seleccionar el símbolo {broker_symbol}")
             return pd.DataFrame()
 
-        if from_date is not None:
-            now = datetime.now(timezone.utc)
-            rates = mt5.copy_rates_range(broker_symbol, tf, from_date, now)
-        else:
-            rates = mt5.copy_rates_from_pos(broker_symbol, tf, 0, n_bars)
+        # "Despertar" el símbolo: algunos terminales necesitan un tick antes de
+        # servir velas. No es crítico si falla.
+        try:
+            mt5.symbol_info_tick(broker_symbol)
+        except Exception:  # noqa: BLE001
+            pass
 
-        if rates is None or len(rates) == 0:
-            logger.warning(f"copy_rates devolvió vacío para {broker_symbol} {timeframe}")
+        # ── Modo simple: últimas n_bars ──────────────────────────────────
+        if from_date is None:
+            rates = self._rates_pos_retry(broker_symbol, tf, n_bars)
+            if rates is None or len(rates) == 0:
+                logger.warning(f"copy_rates_from_pos vacío para {broker_symbol} {timeframe}")
+                return pd.DataFrame()
+            df = pd.DataFrame(rates)
+            df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
+            return df
+
+        # ── Modo rango: descarga CHUNKED ─────────────────────────────────
+        now = datetime.now(timezone.utc)
+        bars_per_day = _BARS_PER_DAY.get(timeframe, 96)
+        # apuntamos a ~5000 velas por chunk → M5≈17d, M15≈52d, M30≈104d, H1≈208d
+        chunk_days = max(1, int(5000 / bars_per_day))
+
+        frames: list[pd.DataFrame] = []
+        empty_chunks = 0
+        total_chunks = 0
+        cursor = from_date
+        while cursor < now:
+            chunk_end = min(cursor + timedelta(days=chunk_days), now)
+            total_chunks += 1
+            rates = self._rates_range_retry(broker_symbol, tf, cursor, chunk_end)
+            if rates is not None and len(rates) > 0:
+                frames.append(pd.DataFrame(rates))
+            else:
+                empty_chunks += 1
+            cursor = chunk_end
+
+        if not frames:
+            logger.warning(
+                f"copy_rates_range vacío en los {total_chunks} chunks para "
+                f"{broker_symbol} {timeframe}. Causas posibles:\n"
+                f"  - El símbolo no existe con ese nombre exacto en el broker.\n"
+                f"  - El terminal aún no bajó el histórico: abre el gráfico de "
+                f"{broker_symbol} en {timeframe}, hazle scroll hacia atrás, y "
+                f"vuelve a correr este script (es incremental, no repite trabajo)."
+            )
             return pd.DataFrame()
 
-        df = pd.DataFrame(rates)
+        if empty_chunks:
+            logger.info(
+                f"{broker_symbol} {timeframe}: {empty_chunks}/{total_chunks} chunks "
+                f"vinieron vacíos (history parcial). Re-corre el script para "
+                f"completar — el terminal va bajando más en cada pasada."
+            )
+
+        df = pd.concat(frames, ignore_index=True)
         df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
+        df = df.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
         return df
 
     # ─────────────────────────────────────────────────────

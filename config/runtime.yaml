@@ -1,6 +1,4 @@
-# Overrides en vivo del dashboard. Editado automáticamente. No modificar a mano
-# mientras el bot esté corriendo (es seguro hacerlo si está parado).
 take_trades:
+  EURUSD: false
   NAS100: false
   XAUUSD: false
-  EURUSD: false

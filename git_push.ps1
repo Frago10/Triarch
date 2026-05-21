@@ -51,7 +51,15 @@ Write-Host ""
 Write-Host "==> Commit..." -ForegroundColor Cyan
 
 $commitMsg = @"
-Tuning #2 + cambio de activo USDJPY -> EURUSD
+Tuning #2 + EURUSD + fix M5 + UI v3
+
+Dashboard UI v3 (sin perder funcionalidad):
+- Splash de bienvenida con wordmark gradient
+- Sidebar branded: entorno, cuenta MT5, kill switch, atajos
+- Tabs reorganizadas: 6 -> 5 (nueva "Inicio" con resumen 24h;
+  Signals/Evals/Stats consolidadas en "Datos" con sub-tabs)
+- CSS moderno: glassmorphism, pills translucidas, hover en KPIs,
+  dots con halo, empty states con emoji
 
 Estrategias y backtesting:
 - Nueva estrategia BB_MR (Bollinger Mean Reversion)
@@ -61,6 +69,12 @@ Estrategias y backtesting:
   (20x mas rapido); fix de OOM en el slice de velas futuras
 - Confluencia configurable por activo (build_confluence_for)
 
+Fix descarga de historico (forex/M5 devolvia 0 velas):
+- mt5_client.get_rates ahora descarga EN CHUNKS con reintentos
+- copy_rates_range en 1 sola llamada fallaba con M5 + rangos largos
+  (solo devuelve lo cacheado por el terminal)
+- fetch_history: mensajes que distinguen simbolo-malo de historico-no-bajado
+
 Config validada en backtest (1 ano data real):
 - XAUUSD: EMA_MOMENTUM sola @ min_rr 2.2 -> PF 1.51, WR 41%, E +0.30R
 - 3er activo cambiado de USDJPY a EURUSD en todo el proyecto
@@ -68,8 +82,7 @@ Config validada en backtest (1 ano data real):
 - EURUSD: perfil scalper, sesion 07:00-16:00 UTC, SCALPER+BB_MR
 
 Otros:
-- fetch_history sugiere simbolos parecidos cuando uno falla
-- contexto.txt actualizado (secciones 03, 05, 10, 11, 12)
+- contexto.txt actualizado (secciones 03, 05, 07, 10, 11, 12)
 "@
 
 git commit -m $commitMsg
