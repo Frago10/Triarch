@@ -31,6 +31,7 @@
 #  §11  Próximos pasos
 #  §12  Notas técnicas y lecciones
 #  §13  Front-end "Crimson Black" (UI v4) — 2026-05-20
+#  §14  Front-end estático para GitHub Pages — 2026-05-20
 ################################################################################
 
 
@@ -754,6 +755,139 @@ NOTA PARA FUTURAS ITERACIONES DE UI
       · scripts.backtest              →  backtest_symbol / _format_summary
     En ese caso, esta versión Streamlit puede coexistir como "panel interno"
     mientras la web pública la sirve un backend más liviano.
+
+
+################################################################################
+#  §14  FRONT-END ESTÁTICO PARA GITHUB PAGES  —  2026-05-20
+################################################################################
+
+MOTIVO
+    GitHub Pages SOLO sirve archivos estáticos: no corre Python, no corre
+    Streamlit, no puede conectarse a MT5. Para poder publicar el dashboard del
+    bot en una URL pública (jpfrago.github.io/triarch o similar) se construyó
+    una versión HTML/CSS/JS independiente que vive en /docs y consume datos
+    exportados desde la lógica del bot en local.
+
+    Esto convive con la versión Streamlit (UI v4) — NO la reemplaza.
+    Streamlit sigue siendo la herramienta operativa en local (con MT5 vivo,
+    toggles persistentes, run de backtest on-demand). La web estática es la
+    capa de visualización pública / portfolio.
+
+ARQUITECTURA NUEVA
+    docs/                     ← carpeta raíz que GitHub Pages sirve
+    ├── index.html            ← landing + 5 pestañas (Inicio, Vivo & Control,
+    │                            Decisiones, Backtesting, Datos)
+    ├── .nojekyll             ← evita procesamiento Jekyll
+    ├── README.md             ← guía de uso/deploy (no se sirve como página)
+    ├── assets/
+    │   ├── css/styles.css    ← sistema de diseño "Crimson Black" completo,
+    │   │                       independiente del CSS embebido en Streamlit
+    │   └── js/app.js         ← vanilla JS (sin frameworks ni bundler)
+    │                           · carga ./data/state.json (fallback sample.json)
+    │                           · render de las 5 pestañas + sub-tabs
+    │                           · filtros client-side (activo, estrategia,
+    │                             estado, dirección, últimos N días)
+    │                           · export .txt en cliente (Blob + download)
+    │                           · curva de equity con Canvas (sin libs)
+    └── data/
+        ├── sample.json       ← datos sintéticos para que la web sea usable
+        │                       sin un export real (3 activos, 10 signals,
+        │                       backtest mock con equity curve)
+        └── state.json        ← (opcional) snapshot real del bot
+                                generado por scripts.export_web
+
+    scripts/export_web.py    ← script nuevo (entrypoint Python)
+                                Lee SQLite (AuditStore) + MT5 (opcional)
+                                + cache de backtest (data_cache/backtest_last.json
+                                si existe) → escribe docs/data/state.json.
+                                Flags: --signals-limit, --evals-limit, --no-mt5, --out.
+
+CONTRATO DEL state.json
+    {
+      "meta":      {generated_at, is_sample, signals_count, evals_count},
+      "settings":  {env, default_mode, conf_min_signals, conf_min_families,
+                    conf_min_score, kill},
+      "account":   {login, server, name, currency, balance, equity, margin,
+                    free_margin, leverage}  | null,
+      "symbols":   { NAME: {broker_symbol, description, profile, timeframe,
+                    mode, take_trades, take_trades_live, session_start,
+                    session_end, strategies[], family, target_trades_wk} },
+      "signals":   [ … filas crudas de la tabla signals … ],
+      "evals":     [ … filas crudas de la tabla evals … ],
+      "backtest_results": [ … resultados de scripts.backtest si los hay … ]
+    }
+    Cualquier cambio de schema requiere alinear scripts/export_web.py y
+    docs/assets/js/app.js a la par.
+
+DIFERENCIAS WEB vs STREAMLIT  (intencionales)
+    · "Trades reales en MT5" → en la web es SOLO LECTURA (refleja el
+       take_trades_live del último export). En Streamlit persiste a
+       config/runtime.yaml. Esto es a propósito: la web es pública.
+    · "Correr backtest" → en la web NO se corre, solo se muestran los
+       resultados de la última corrida en local (data_cache/backtest_last.json).
+       El botón estaba en Streamlit y allí seguirá.
+    · La cuenta MT5 en la web es del momento del export, no live.
+
+DEPLOY EN GITHUB PAGES
+    1. Repo en GitHub  →  Settings  →  Pages.
+    2. Source = "Deploy from a branch".
+    3. Branch = main  ·  Folder = /docs.
+    4. URL queda en `https://<user>.github.io/<repo>/`.
+    El .nojekyll asegura que el directorio se sirve raw (sin procesar markdown).
+
+FLUJO DE ACTUALIZACIÓN DE DATOS
+    python -m scripts.fetch_history --years 1               (una vez al mes)
+    python -m scripts.backtest --out data_cache/backtest_last.json
+    python -m scripts.export_web
+    git add docs/data/state.json
+    git commit -m "chore(web): refresh snapshot"
+    git push
+    → GitHub Pages re-deploya solo en ~1 min.
+
+PRIVACIDAD
+    El export incluye número de cuenta, balance, equity y nombre del servidor
+    MT5. ANTES de pushear a un repo público:
+      · Considerar `--no-mt5` (omite el bloque "account"),
+      · O mantener el repo privado y usar GitHub Pages privado (plan Pro+),
+      · O editar export_web.py para enmascarar `login` y `balance`.
+    Por defecto el script no enmascara nada (uso personal).
+
+CHECKLIST DE VERIFICACIÓN  (correr antes del primer deploy)
+    [ ] Abrir docs/index.html localmente con un server (no file://):
+            python -m http.server -d docs 8080
+        ó usar la extensión "Live Server" en VS Code.
+        Verificar que el splash sale, las 5 tabs renderizan, los filtros
+        de Decisiones funcionan, el download .txt baja un archivo y
+        el banner de "datos de muestra" aparece (porque solo está sample.json).
+    [ ] python -m scripts.export_web   debe escribir docs/data/state.json sin
+        errores, incluso sin MT5 (--no-mt5). El banner debe desaparecer al
+        existir state.json.
+    [ ] Después de subir a GitHub:
+            Settings → Pages → folder /docs → URL operativa.
+    [ ] Probar la URL pública en mobile: layout colapsa a 1 columna, las
+        tablas siguen scrolleables.
+
+DECISIONES DE DISEÑO  (registro)
+    · No se usó React/Vue/Next por: peso, complejidad, build step → GitHub
+      Pages sirve mejor sin build. Vanilla JS + Canvas para gráficos es
+      suficiente para 5 pestañas y filtros client-side.
+    · No se usó Chart.js / D3 — equity curve dibujada en Canvas con gradient
+      rojo en menos de 50 líneas. Mantiene la paleta sin dependencias.
+    · Tipografía: Inter + JetBrains Mono desde Google Fonts (1 sola request).
+    · La paleta y los componentes son 1:1 con el CSS embebido en app.py
+      (Streamlit UI v4) → si se itera el design system, hay que sincronizar
+      docs/assets/css/styles.css. (TODO menor: extraer ambos a un solo
+      tokens.css cuando crezca.)
+
+CÓMO ABRIRLO LOCAL  (sin git, sin push)
+    cd "<repo>"
+    python -m http.server -d docs 8080
+    → http://localhost:8080/   abre la web exactamente como la verá GitHub Pages.
+
+ROLLBACK
+    Borrar /docs/index.html, /docs/assets/, /docs/data/ y /docs/.nojekyll.
+    Borrar scripts/export_web.py.
+    El proyecto vuelve al estado pre-§14. (Streamlit y §13 quedan intactos.)
 
 
 ################################################################################
