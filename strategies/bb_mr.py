@@ -23,6 +23,7 @@ Niveles:
 Score: combinación de profundidad del extremo (cuánto se metió en sobreventa)
 y fuerza del rechazo (tamaño de la mecha respecto al cuerpo).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -40,9 +41,9 @@ class BBMeanReversionStrategy(Strategy):
         self,
         rsi_oversold: float = 35.0,
         rsi_overbought: float = 65.0,
-        min_bb_width: float = 0.005,   # 0.5% del precio mínimo
+        min_bb_width: float = 0.005,  # 0.5% del precio mínimo
         sl_atr_buffer: float = 0.25,
-        rr_target: float = 1.8,        # se sube si cfg.risk.min_rr_ratio es mayor
+        rr_target: float = 1.8,  # se sube si cfg.risk.min_rr_ratio es mayor
         rr_target_tp2: float = 3.0,
     ) -> None:
         self.rsi_oversold = rsi_oversold
@@ -55,7 +56,10 @@ class BBMeanReversionStrategy(Strategy):
     def evaluate(self, ctx: StrategyContext) -> tuple[Eval, Signal | None]:
         df = ctx.df
         if len(df) < 30:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"),
+                None,
+            )
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -67,14 +71,21 @@ class BBMeanReversionStrategy(Strategy):
         atr = last.get("atr_14", np.nan)
         rsi_prev = prev.get("rsi_14", np.nan)
 
-        if any(pd.isna(x) for x in (bb_upper, bb_lower, bb_mid, bb_width, atr, rsi_prev)):
-            return self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"), None
+        if any(
+            pd.isna(x) for x in (bb_upper, bb_lower, bb_mid, bb_width, atr, rsi_prev)
+        ):
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"),
+                None,
+            )
         if atr <= 0:
             return self._make_eval(ctx, detected=False, blocked_by="atr_zero"), None
         if bb_width < self.min_bb_width:
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="bb_too_narrow",
+                    ctx,
+                    detected=False,
+                    blocked_by="bb_too_narrow",
                     blocked_detail=f"bb_width={bb_width:.5f}<{self.min_bb_width}",
                 ),
                 None,
@@ -87,12 +98,18 @@ class BBMeanReversionStrategy(Strategy):
         direction: Direction | None = None
         if prev_close < bb_lower and close > bb_lower and rsi_prev < self.rsi_oversold:
             direction = Direction.LONG
-        elif prev_close > bb_upper and close < bb_upper and rsi_prev > self.rsi_overbought:
+        elif (
+            prev_close > bb_upper
+            and close < bb_upper
+            and rsi_prev > self.rsi_overbought
+        ):
             direction = Direction.SHORT
         else:
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="no_extreme_rejection",
+                    ctx,
+                    detected=False,
+                    blocked_by="no_extreme_rejection",
                     blocked_detail=f"prev_close={prev_close:.5f}  bbL={bb_lower:.5f}  bbU={bb_upper:.5f}  rsi_prev={rsi_prev:.1f}",
                 ),
                 None,
@@ -126,22 +143,26 @@ class BBMeanReversionStrategy(Strategy):
         if direction == Direction.LONG:
             depth = max(0.0, (self.rsi_oversold - float(rsi_prev)) / self.rsi_oversold)
         else:
-            depth = max(0.0, (float(rsi_prev) - self.rsi_overbought) / (100 - self.rsi_overbought))
+            depth = max(
+                0.0,
+                (float(rsi_prev) - self.rsi_overbought) / (100 - self.rsi_overbought),
+            )
         depth = float(min(depth, 1.0))
 
         # Fuerza del rechazo: mecha de la barra previa respecto al cuerpo
         body = abs(prev["close"] - prev["open"])
         wick = (
-            (prev["close"] - prev["low"]) if direction == Direction.LONG
+            (prev["close"] - prev["low"])
+            if direction == Direction.LONG
             else (prev["high"] - prev["close"])
         )
         wick_ratio = float(min(wick / max(body, 1e-9), 3.0) / 3.0)  # 0..1
 
         score = float(np.clip(0.35 + 0.4 * depth + 0.25 * wick_ratio, 0.0, 1.0))
         confidence = (
-            Confidence.HIGH if score >= 0.7 else
-            Confidence.MEDIUM if score >= 0.5 else
-            Confidence.LOW
+            Confidence.HIGH
+            if score >= 0.7
+            else Confidence.MEDIUM if score >= 0.5 else Confidence.LOW
         )
 
         sig = Signal(
@@ -171,8 +192,11 @@ class BBMeanReversionStrategy(Strategy):
             },
         )
         ev = self._make_eval(
-            ctx, detected=True, direction=direction,
-            score=score, proposed_entry=float(entry),
+            ctx,
+            detected=True,
+            direction=direction,
+            score=score,
+            proposed_entry=float(entry),
             emitted_signal_id=sig.signal_id,
         )
         return ev, sig

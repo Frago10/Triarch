@@ -8,6 +8,7 @@ Tres modos:
 
 Cada modo es una clase concreta que implementa `place(signal)`.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -29,5 +30,4 @@ class Executor(ABC):
     mode: ExecutionMode
 
     @abstractmethod
-    def place(self, signal: Signal) -> ExecutionResult:
-        ...
+    def place(self, signal: Signal) -> ExecutionResult: ...

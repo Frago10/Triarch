@@ -7,6 +7,7 @@ Genera 2 tipos de notas:
 
 Las notas usan frontmatter compatible con el resto del vault.
 """
+
 from __future__ import annotations
 
 from datetime import date as ddate

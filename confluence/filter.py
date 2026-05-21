@@ -9,6 +9,7 @@ Reglas estilo Roybot:
   - Mínimo K familias distintas representadas.
   - Score combinado mínimo.
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -28,6 +29,7 @@ class ConfluenceConfig:
     Para "pass-through" (debug o solo 1 estrategia activa), poner
     min_signals=1, min_families=1, min_combined_score=0.0.
     """
+
     min_signals: int = 2
     min_families: int = 2
     min_combined_score: float = 1.0
@@ -51,7 +53,9 @@ class ConfluenceFilter:
         Si pasa: devuelve la "mejor" señal (mayor score) como `chosen_signal`.
         """
         if not signals:
-            return ConfluenceDecision(accepted=False, chosen_signal=None, reason="no_signals")
+            return ConfluenceDecision(
+                accepted=False, chosen_signal=None, reason="no_signals"
+            )
 
         # Agrupar por dirección
         by_dir: dict[Direction, list[Signal]] = {}

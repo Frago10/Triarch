@@ -1,4 +1,5 @@
 """Tests del filtro de confluencia."""
+
 from __future__ import annotations
 
 import pytest
@@ -7,7 +8,9 @@ from confluence.filter import ConfluenceConfig, ConfluenceFilter
 from signals.schema import Confidence, Direction, Signal
 
 
-def _sig(strategy: str, family: str, direction: Direction, score: float = 0.6) -> Signal:
+def _sig(
+    strategy: str, family: str, direction: Direction, score: float = 0.6
+) -> Signal:
     return Signal(
         symbol="XAUUSD",
         timeframe="M15",
@@ -27,14 +30,18 @@ def _sig(strategy: str, family: str, direction: Direction, score: float = 0.6) -
 
 
 def test_passthrough_with_lenient_config():
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=1, min_families=1, min_combined_score=0.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=1, min_families=1, min_combined_score=0.0)
+    )
     d = f.filter([_sig("ORB", "opening", Direction.LONG)])
     assert d.accepted
     assert d.chosen_signal is not None
 
 
 def test_rejects_single_signal_with_strict_config():
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=1.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=1.0)
+    )
     d = f.filter([_sig("ORB", "opening", Direction.LONG, score=0.7)])
     assert not d.accepted
     assert "min_signals" in d.reason
@@ -42,7 +49,9 @@ def test_rejects_single_signal_with_strict_config():
 
 def test_rejects_two_signals_same_family():
     """2 señales pero misma familia → rechaza por min_families."""
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=0.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=0.0)
+    )
     d = f.filter(
         [
             _sig("ORB", "opening", Direction.LONG, score=0.6),
@@ -54,7 +63,9 @@ def test_rejects_two_signals_same_family():
 
 
 def test_accepts_two_signals_two_families():
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=1.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=1.0)
+    )
     d = f.filter(
         [
             _sig("ORB", "opening", Direction.LONG, score=0.6),
@@ -66,7 +77,9 @@ def test_accepts_two_signals_two_families():
 
 
 def test_rejects_direction_tie():
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=1, min_families=1, min_combined_score=0.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=1, min_families=1, min_combined_score=0.0)
+    )
     d = f.filter(
         [
             _sig("ORB", "opening", Direction.LONG, score=0.6),
@@ -78,7 +91,9 @@ def test_rejects_direction_tie():
 
 
 def test_rejects_low_combined_score():
-    f = ConfluenceFilter(ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=2.0))
+    f = ConfluenceFilter(
+        ConfluenceConfig(min_signals=2, min_families=2, min_combined_score=2.0)
+    )
     d = f.filter(
         [
             _sig("ORB", "opening", Direction.LONG, score=0.4),

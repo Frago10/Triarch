@@ -4,6 +4,7 @@ Triarch — Risk Manager.
 Heredado del esqueleto en [[Roybot - Risk management]] del vault.
 Extendido para multi-activo y para emitir Eval rejection events.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -107,10 +108,14 @@ class RiskManager:
             now = datetime.now(timezone.utc)
 
         if self.kill_switch:
-            return RiskDecision.block(LockReason.KILL_SWITCH, "Kill switch global activado")
+            return RiskDecision.block(
+                LockReason.KILL_SWITCH, "Kill switch global activado"
+            )
 
         if signal.symbol not in self.symbols:
-            return RiskDecision.block(LockReason.NONE, f"Símbolo desconocido: {signal.symbol}")
+            return RiskDecision.block(
+                LockReason.NONE, f"Símbolo desconocido: {signal.symbol}"
+            )
 
         cfg = self.symbols[signal.symbol]
         st = self.state[signal.symbol]
@@ -120,7 +125,9 @@ class RiskManager:
 
         # Lock-outs en orden de prioridad
         if st.active_trade:
-            return RiskDecision.block(LockReason.ACTIVE_TRADE, "Ya hay trade activo en este activo")
+            return RiskDecision.block(
+                LockReason.ACTIVE_TRADE, "Ya hay trade activo en este activo"
+            )
 
         if not self._in_window(now, cfg):
             return RiskDecision.block(
@@ -128,7 +135,9 @@ class RiskManager:
                 f"Fuera de ventana {cfg.session_utc.start}-{cfg.session_utc.end} UTC",
             )
 
-        max_daily_loss_money = -abs(self.account_equity * cfg.risk.max_daily_loss_pct / 100.0)
+        max_daily_loss_money = -abs(
+            self.account_equity * cfg.risk.max_daily_loss_pct / 100.0
+        )
         if st.daily_pnl <= max_daily_loss_money:
             return RiskDecision.block(
                 LockReason.DAILY_CAP,
@@ -156,6 +165,7 @@ class RiskManager:
         # Slippage filter — sólo aplica si el signal tiene atr_deviation calculado
         if signal.atr_deviation is not None:
             from config.settings import get_settings  # lazy
+
             max_slip = get_settings().risk_max_slippage_atr
             if signal.atr_deviation > max_slip:
                 return RiskDecision.block(
@@ -170,7 +180,9 @@ class RiskManager:
         self._ensure_session(st, now)
         st.active_trade = True
 
-    def on_trade_close(self, symbol: str, pnl_money: float, now: datetime | None = None) -> None:
+    def on_trade_close(
+        self, symbol: str, pnl_money: float, now: datetime | None = None
+    ) -> None:
         st = self.state[symbol]
         self._ensure_session(st, now)
         st.daily_pnl += pnl_money

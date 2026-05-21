@@ -4,6 +4,7 @@ Modo SIGNAL_ONLY — el bot solo notifica, no coloca órdenes.
 Es el modo de arranque del MVP. Garantiza que ni en un bug podemos colocar
 una orden por error.
 """
+
 from __future__ import annotations
 
 from loguru import logger

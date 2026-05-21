@@ -4,6 +4,7 @@ Triarch — Strategy ABC.
 Contrato: cada estrategia recibe un DataFrame de velas con indicadores y una
 config de símbolo, y devuelve un Signal o None.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -18,7 +19,7 @@ from signals.schema import Eval, Signal
 @dataclass
 class StrategyContext:
     symbol_cfg: SymbolConfig
-    df: pd.DataFrame   # velas con indicadores ya añadidos
+    df: pd.DataFrame  # velas con indicadores ya añadidos
 
 
 class Strategy(ABC):

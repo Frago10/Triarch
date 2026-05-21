@@ -5,6 +5,7 @@ Toda interacción con MT5 pasa por aquí. El paquete `MetaTrader5` solo está
 disponible en Windows; en otros sistemas, el import falla "soft" y el cliente
 puede correr en modo MOCK para tests.
 """
+
 from __future__ import annotations
 
 import sys
@@ -22,6 +23,7 @@ from config.settings import TriarchSettings, get_settings
 # El import oficial sólo existe en Windows.
 try:
     import MetaTrader5 as mt5  # type: ignore[import-not-found]
+
     MT5_AVAILABLE = True
 except ImportError:
     mt5 = None  # type: ignore[assignment]
@@ -48,8 +50,13 @@ if MT5_AVAILABLE:
 # Velas aproximadas por día, por timeframe. Se usa para dimensionar los chunks
 # de descarga (ver MT5Client.get_rates). Asume ~24h de mercado (FX/CFD).
 _BARS_PER_DAY: dict[str, int] = {
-    "M1": 1440, "M5": 288, "M15": 96, "M30": 48,
-    "H1": 24, "H4": 6, "D1": 1,
+    "M1": 1440,
+    "M5": 288,
+    "M15": 96,
+    "M30": 48,
+    "H1": 24,
+    "H4": 6,
+    "D1": 1,
 }
 
 
@@ -240,7 +247,7 @@ class MT5Client:
             rates = mt5.copy_rates_range(broker_symbol, tf, start, end)
             if rates is not None and len(rates) > 0:
                 return rates
-            time.sleep(0.4 * (attempt + 1))   # darle tiempo al terminal a bajar
+            time.sleep(0.4 * (attempt + 1))  # darle tiempo al terminal a bajar
         return rates  # puede venir None o vacío
 
     def _rates_pos_retry(self, broker_symbol, tf, n_bars, retries: int = 4):
@@ -281,7 +288,9 @@ class MT5Client:
             return pd.DataFrame()
 
         if timeframe not in TIMEFRAMES:
-            raise ValueError(f"Timeframe no soportado: {timeframe}. Opciones: {list(TIMEFRAMES)}")
+            raise ValueError(
+                f"Timeframe no soportado: {timeframe}. Opciones: {list(TIMEFRAMES)}"
+            )
 
         tf = TIMEFRAMES[timeframe]
         if not mt5.symbol_select(broker_symbol, True):
@@ -299,7 +308,9 @@ class MT5Client:
         if from_date is None:
             rates = self._rates_pos_retry(broker_symbol, tf, n_bars)
             if rates is None or len(rates) == 0:
-                logger.warning(f"copy_rates_from_pos vacío para {broker_symbol} {timeframe}")
+                logger.warning(
+                    f"copy_rates_from_pos vacío para {broker_symbol} {timeframe}"
+                )
                 return pd.DataFrame()
             df = pd.DataFrame(rates)
             df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
@@ -345,7 +356,11 @@ class MT5Client:
 
         df = pd.concat(frames, ignore_index=True)
         df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
-        df = df.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+        df = (
+            df.drop_duplicates(subset=["time"])
+            .sort_values("time")
+            .reset_index(drop=True)
+        )
         return df
 
     # ─────────────────────────────────────────────────────
@@ -355,7 +370,9 @@ class MT5Client:
         if not MT5_AVAILABLE:
             return []
         positions = (
-            mt5.positions_get(symbol=broker_symbol) if broker_symbol else mt5.positions_get()
+            mt5.positions_get(symbol=broker_symbol)
+            if broker_symbol
+            else mt5.positions_get()
         )
         if positions is None:
             return []

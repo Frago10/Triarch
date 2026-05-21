@@ -1,4 +1,5 @@
 """Test smoke de la estrategia ORB."""
+
 from __future__ import annotations
 
 import numpy as np

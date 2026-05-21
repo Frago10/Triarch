@@ -4,6 +4,7 @@ Resumen rápido de la SQLite del bot — útil cuando no tienes sqlite3 CLI.
 Uso:
     python -m scripts.db_summary
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -27,15 +28,13 @@ def main() -> int:
 
     # Resumen evals
     console.print("[bold cyan]── Evals por activo y estrategia ──[/bold cyan]")
-    rows = conn.execute(
-        """SELECT symbol, strategy,
+    rows = conn.execute("""SELECT symbol, strategy,
                   COUNT(*) AS total,
                   SUM(detected_setup) AS detected,
                   COUNT(emitted_signal_id) AS emitted
            FROM evals
            GROUP BY symbol, strategy
-           ORDER BY symbol, strategy"""
-    ).fetchall()
+           ORDER BY symbol, strategy""").fetchall()
     if rows:
         t = Table()
         t.add_column("Activo")
@@ -44,20 +43,24 @@ def main() -> int:
         t.add_column("Detected", justify="right")
         t.add_column("Emitted", justify="right")
         for r in rows:
-            t.add_row(r["symbol"], r["strategy"], str(r["total"]), str(r["detected"] or 0), str(r["emitted"]))
+            t.add_row(
+                r["symbol"],
+                r["strategy"],
+                str(r["total"]),
+                str(r["detected"] or 0),
+                str(r["emitted"]),
+            )
         console.print(t)
     else:
         console.print("[dim]Sin evals todavía.[/dim]")
 
     # Top razones de bloqueo
     console.print("\n[bold cyan]── Top razones de bloqueo ──[/bold cyan]")
-    rows = conn.execute(
-        """SELECT blocked_by, COUNT(*) AS n
+    rows = conn.execute("""SELECT blocked_by, COUNT(*) AS n
            FROM evals
            WHERE blocked_by IS NOT NULL
            GROUP BY blocked_by
-           ORDER BY n DESC LIMIT 10"""
-    ).fetchall()
+           ORDER BY n DESC LIMIT 10""").fetchall()
     if rows:
         t = Table()
         t.add_column("Razón")
@@ -77,7 +80,16 @@ def main() -> int:
     ).fetchall()
     if rows:
         t = Table()
-        for col in ["Time UTC", "Activo", "Strat", "Dir", "Entry", "R:R", "Score", "Status"]:
+        for col in [
+            "Time UTC",
+            "Activo",
+            "Strat",
+            "Dir",
+            "Entry",
+            "R:R",
+            "Score",
+            "Status",
+        ]:
             t.add_column(col)
         for r in rows:
             t.add_row(

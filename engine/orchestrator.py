@@ -12,6 +12,7 @@ El bucle principal:
      g. Executor: SIGNAL_ONLY / APPROVAL / AUTO.
      h. Notifiers: avisan según modo.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -21,7 +22,13 @@ from loguru import logger
 from audit.obsidian_writer import ObsidianWriter
 from audit.store import AuditStore
 from config.runtime import get_take_trades
-from config.settings import ExecutionMode, SymbolConfig, TriarchSettings, get_settings, get_symbols
+from config.settings import (
+    ExecutionMode,
+    SymbolConfig,
+    TriarchSettings,
+    get_settings,
+    get_symbols,
+)
 from confluence.filter import ConfluenceFilter, build_confluence_for
 from data_layer.mt5_client import MT5Client
 from engine.indicators import add_default_indicators, opening_range

@@ -1,6 +1,7 @@
 """
 Triarch — factory de executor según modo del activo.
 """
+
 from __future__ import annotations
 
 from config.settings import ExecutionMode, SymbolConfig

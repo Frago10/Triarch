@@ -8,6 +8,7 @@ Reglas duras:
   - Cancela cualquier orden existente del mismo signal antes de colocar otra.
   - Slippage guard: si precio de mercado se desvió > X*ATR del entry, NO coloca.
 """
+
 from __future__ import annotations
 
 from loguru import logger
@@ -60,7 +61,11 @@ class AutoExecutor(Executor):
                 "Esto debería venir del position sizer."
             )
 
-        order_type = mt5.ORDER_TYPE_BUY if signal.direction == Direction.LONG else mt5.ORDER_TYPE_SELL
+        order_type = (
+            mt5.ORDER_TYPE_BUY
+            if signal.direction == Direction.LONG
+            else mt5.ORDER_TYPE_SELL
+        )
         price = sym_info.ask if signal.direction == Direction.LONG else sym_info.bid
 
         magic = MAGIC_NUMBERS.get(signal.strategy, 100000)

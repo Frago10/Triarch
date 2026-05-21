@@ -4,6 +4,7 @@ Test rápido de conexión a MT5.
 Uso:
     python -m scripts.connect_mt5
 """
+
 from __future__ import annotations
 
 import sys
@@ -28,7 +29,9 @@ def main() -> int:
 
     client = MT5Client()
     if not client.initialize():
-        console.print("[red]Conexión fallida. Revisa .env y que MT5 terminal esté instalado.[/red]")
+        console.print(
+            "[red]Conexión fallida. Revisa .env y que MT5 terminal esté instalado.[/red]"
+        )
         return 1
 
     info = client.account_info()

@@ -7,6 +7,7 @@ Uso:
 
 Ctrl+C para detener (cierra MT5 limpio).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,7 +36,9 @@ def main() -> int:
 
     orch = Orchestrator(client, settings)
     logger.info(f"Triarch live loop iniciado — tick cada {args.tick}s")
-    logger.info(f"Modo default: {settings.triarch_default_mode.value}  Env: {settings.triarch_env.value}")
+    logger.info(
+        f"Modo default: {settings.triarch_default_mode.value}  Env: {settings.triarch_env.value}"
+    )
 
     try:
         while True:

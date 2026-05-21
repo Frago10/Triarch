@@ -20,6 +20,7 @@ Lifecycle de un signal en la DB:
    ├─► CLOSED_SL    (stop loss tocado)
    └─► CLOSED_MANUAL (cerraste a mano en MT5)
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -108,6 +109,7 @@ class TradeMonitor:
         # Reconstruir Signal a partir del dict
         out: list[Signal] = []
         from signals.schema import Confidence, Direction, SignalStatus as SS
+
         for r in rows:
             try:
                 out.append(
@@ -132,7 +134,9 @@ class TradeMonitor:
                         status=SS(r["status"]),
                         mt5_ticket=r["mt5_ticket"],
                         placed_at_utc=(
-                            datetime.fromisoformat(r["placed_at_utc"]) if r["placed_at_utc"] else None
+                            datetime.fromisoformat(r["placed_at_utc"])
+                            if r["placed_at_utc"]
+                            else None
                         ),
                         filled_price=r["filled_price"],
                     )
@@ -173,13 +177,12 @@ class TradeMonitor:
         net_pnl = total_profit + total_commission + total_swap
 
         # Identificar el deal de cierre (DEAL_ENTRY_OUT)
-        out_deal = next(
-            (d for d in deals if d.entry == mt5.DEAL_ENTRY_OUT), None
-        )
+        out_deal = next((d for d in deals if d.entry == mt5.DEAL_ENTRY_OUT), None)
         closed_price = out_deal.price if out_deal else None
         closed_time = (
             datetime.fromtimestamp(out_deal.time, tz=timezone.utc)
-            if out_deal else datetime.now(timezone.utc)
+            if out_deal
+            else datetime.now(timezone.utc)
         )
 
         # Detectar SL/TP por proximidad
@@ -201,6 +204,7 @@ class TradeMonitor:
         sig.pnl_money = net_pnl
         if closed_price is not None and sig.filled_price is not None:
             from signals.schema import Direction as D
+
             direction_mult = 1 if sig.direction == D.LONG else -1
             sig.pnl_pts = (closed_price - sig.filled_price) * direction_mult
 

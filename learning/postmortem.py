@@ -6,6 +6,7 @@ Lee SQLite + escribe nota markdown en `wiki/triarch/postmortems/YYYY-Www.md` del
 V1: agregaciones simples (P&L por activo, WR por estrategia, lock-out reasons).
 V2: prompt a un LLM para que sugiera ajustes (vía API o stored prompt para Claude).
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -40,7 +41,9 @@ def generate_postmortem(
     body: list[str] = []
     body.append(f"# Triarch — postmortem semana {year}-W{week:02d}")
     body.append("")
-    body.append(f"Periodo: {start.date().isoformat()} → {(end - timedelta(days=1)).date().isoformat()}")
+    body.append(
+        f"Periodo: {start.date().isoformat()} → {(end - timedelta(days=1)).date().isoformat()}"
+    )
     body.append("")
 
     # 1. Stats globales
@@ -50,7 +53,9 @@ def generate_postmortem(
     body.append(f"- **Evaluaciones totales:** {len(evals_in)}")
     detected = sum(1 for e in evals_in if e["detected_setup"])
     body.append(f"- **Setups detectados:** {detected}")
-    body.append(f"- **Hit rate detección → señal:** {(len(signals_in)/detected*100) if detected else 0:.1f}%")
+    body.append(
+        f"- **Hit rate detección → señal:** {(len(signals_in)/detected*100) if detected else 0:.1f}%"
+    )
     body.append("")
 
     # 2. Por activo
@@ -66,11 +71,13 @@ def generate_postmortem(
         wins = [p for p in pnls if p > 0]
         losses = [p for p in pnls if p <= 0]
         wr = (len(wins) / len(pnls) * 100) if pnls else 0
-        pf = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else float("inf") if wins else 0
-        pf_str = f"{pf:.2f}" if pf != float("inf") else "∞"
-        body.append(
-            f"| {sym} | {len(ss)} | {sum(pnls):+.2f} | {wr:.1f}% | {pf_str} |"
+        pf = (
+            (sum(wins) / abs(sum(losses)))
+            if losses and sum(losses) != 0
+            else float("inf") if wins else 0
         )
+        pf_str = f"{pf:.2f}" if pf != float("inf") else "∞"
+        body.append(f"| {sym} | {len(ss)} | {sum(pnls):+.2f} | {wr:.1f}% | {pf_str} |")
     body.append("")
 
     # 3. Lock-out reasons (qué bloqueó al bot)
@@ -94,7 +101,9 @@ def generate_postmortem(
     body.append("Analiza esta semana del bot Triarch. Identifica:")
     body.append("  1. Estrategias que están infraperformando vs el resto.")
     body.append("  2. Activos donde el bot NO emite señales — ¿están mal configurados?")
-    body.append("  3. Razones de bloqueo dominantes y si son esperadas o señal de algo roto.")
+    body.append(
+        "  3. Razones de bloqueo dominantes y si son esperadas o señal de algo roto."
+    )
     body.append("  4. Propón 2-3 ajustes concretos a probar la semana siguiente.")
     body.append("  5. Cualquier patrón que sugiera overfit o regime-shift.")
     body.append("```")
@@ -105,7 +114,9 @@ def generate_postmortem(
     body.append("")
 
     body.append("## Notas relacionadas")
-    body.append("- [[../../../../01 - Projects/Proyecto - Triarch Bot (MT5 Multi-Asset)]]")
+    body.append(
+        "- [[../../../../01 - Projects/Proyecto - Triarch Bot (MT5 Multi-Asset)]]"
+    )
     body.append("- [[../../../Trading/Roybot/Roybot - Lecciones para nuestro bot]]")
     body.append("")
 
@@ -123,7 +134,9 @@ def main() -> None:
     from config.settings import get_settings
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--week", type=str, help="YYYY-Www (default: semana ISO actual)")
+    parser.add_argument(
+        "--week", type=str, help="YYYY-Www (default: semana ISO actual)"
+    )
     args = parser.parse_args()
 
     if args.week:

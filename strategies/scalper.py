@@ -13,6 +13,7 @@ Diseñada para EURUSD en M5/M1. Filosofía:
 Rentabilidad a escala: muchos trades chicos con win rate medio-alto.
 El RR sale ~0.85 — para ser rentable necesita WR > ~54%.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -26,25 +27,28 @@ class ScalperStrategy(Strategy):
     family = "trend"
 
     # Parámetros (afinables)
-    rel_atr_min: float = 0.0003     # filtro de volatilidad mínima (ATR / precio)
-    sl_atr_mult: float = 1.0        # SL = entry ∓ 1.0 * ATR
-    tp_atr_mult: float = 0.85       # TP1 = entry ± 0.85 * ATR  → RR ≈ 0.85
+    rel_atr_min: float = 0.0003  # filtro de volatilidad mínima (ATR / precio)
+    sl_atr_mult: float = 1.0  # SL = entry ∓ 1.0 * ATR
+    tp_atr_mult: float = 0.85  # TP1 = entry ± 0.85 * ATR  → RR ≈ 0.85
     score_base: float = 0.58
     max_dist_ema9_atr: float = 0.6  # para continuación: qué tan lejos de EMA9 acepta
-    ema_sep_min: float = 0.0002     # separación mínima EMA9/EMA21 (relativa) →
-                                    # filtra rangos muertos. Valor SUAVE por
-                                    # defecto: subirlo (ej. 0.0004-0.0008) tras
-                                    # ver el backtest sobre DATA REAL de EURUSD.
-                                    # En data sintética un filtro fuerte no
-                                    # aporta (no hay tendencias que filtrar).
-    pullback_only: bool = False     # si True, ignora el gatillo de continuación
+    ema_sep_min: float = 0.0002  # separación mínima EMA9/EMA21 (relativa) →
+    # filtra rangos muertos. Valor SUAVE por
+    # defecto: subirlo (ej. 0.0004-0.0008) tras
+    # ver el backtest sobre DATA REAL de EURUSD.
+    # En data sintética un filtro fuerte no
+    # aporta (no hay tendencias que filtrar).
+    pullback_only: bool = False  # si True, ignora el gatillo de continuación
 
     def evaluate(self, ctx: StrategyContext):
         df = ctx.df
         cfg = ctx.symbol_cfg
 
         if len(df) < 50:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"),
+                None,
+            )
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -58,13 +62,19 @@ class ScalperStrategy(Strategy):
         cur_t = bt.time()
         in_window = (s <= cur_t <= e) if s <= e else (cur_t >= s or cur_t <= e)
         if not in_window:
-            return self._make_eval(ctx, detected=False, blocked_by="out_of_window"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="out_of_window"),
+                None,
+            )
 
         # ─── Filtro de volatilidad ───
         atr_val = float(last.get("atr_14") or 0)
         price = float(last["close"])
         if atr_val <= 0 or price <= 0:
-            return self._make_eval(ctx, detected=False, blocked_by="atr_unavailable"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="atr_unavailable"),
+                None,
+            )
         rel_atr = atr_val / price
         if rel_atr < self.rel_atr_min:
             return self._make_eval(ctx, detected=False, blocked_by="atr_too_low"), None
@@ -73,7 +83,10 @@ class ScalperStrategy(Strategy):
         ema9 = float(last.get("ema_9") or 0)
         ema21 = float(last.get("ema_21") or 0)
         if ema9 <= 0 or ema21 <= 0:
-            return self._make_eval(ctx, detected=False, blocked_by="ema_unavailable"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="ema_unavailable"),
+                None,
+            )
 
         prev_close = float(prev["close"])
         trend_up = ema9 > ema21
@@ -84,7 +97,10 @@ class ScalperStrategy(Strategy):
         # pull-backs no tienen continuación. Exigimos separación mínima.
         ema_sep_rel = abs(ema9 - ema21) / price
         if ema_sep_rel < self.ema_sep_min:
-            return self._make_eval(ctx, detected=False, blocked_by="trend_too_weak"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="trend_too_weak"),
+                None,
+            )
 
         # ─── Gatillo 1: pull-back (cruce de vuelta a EMA9) ───
         long_pullback = trend_up and prev_close < ema9 and price > ema9
@@ -93,11 +109,15 @@ class ScalperStrategy(Strategy):
         # ─── Gatillo 2: continuación (precio descansa entre EMA9 y EMA21) ───
         dist_ema9 = abs(price - ema9) / atr_val
         long_cont = (
-            trend_up and price > ema21 and price <= ema9
+            trend_up
+            and price > ema21
+            and price <= ema9
             and dist_ema9 <= self.max_dist_ema9_atr
         )
         short_cont = (
-            trend_dn and price < ema21 and price >= ema9
+            trend_dn
+            and price < ema21
+            and price >= ema9
             and dist_ema9 <= self.max_dist_ema9_atr
         )
 
@@ -113,9 +133,7 @@ class ScalperStrategy(Strategy):
             return self._make_eval(ctx, detected=False, blocked_by="ambiguous"), None
 
         direction = Direction.LONG if long_setup else Direction.SHORT
-        trigger = (
-            "pullback" if (long_pullback or short_pullback) else "continuation"
-        )
+        trigger = "pullback" if (long_pullback or short_pullback) else "continuation"
 
         if direction == Direction.LONG:
             entry = price
@@ -144,7 +162,9 @@ class ScalperStrategy(Strategy):
             rsi_bonus = 0.1
         ema_sep = abs(ema9 - ema21) / price
         ema_bonus = min(0.15, ema_sep * 200)
-        trigger_bonus = 0.05 if trigger == "pullback" else 0.0  # pull-back algo más fiable
+        trigger_bonus = (
+            0.05 if trigger == "pullback" else 0.0
+        )  # pull-back algo más fiable
         score = min(1.0, self.score_base + rsi_bonus + ema_bonus + trigger_bonus)
 
         sig = Signal(
@@ -165,14 +185,21 @@ class ScalperStrategy(Strategy):
             atr_at_signal=atr_val,
             status=SignalStatus.NEW,
             features={
-                "ema9": ema9, "ema21": ema21, "rsi": rsi_val,
-                "rel_atr": rel_atr, "ema_sep": ema_sep,
-                "trigger": trigger, "dist_ema9_atr": dist_ema9,
+                "ema9": ema9,
+                "ema21": ema21,
+                "rsi": rsi_val,
+                "rel_atr": rel_atr,
+                "ema_sep": ema_sep,
+                "trigger": trigger,
+                "dist_ema9_atr": dist_ema9,
             },
         )
         ev = self._make_eval(
-            ctx, detected=True, direction=direction,
-            proposed_entry=entry, score=score,
+            ctx,
+            detected=True,
+            direction=direction,
+            proposed_entry=entry,
+            score=score,
             emitted_signal_id=sig.signal_id,
         )
         return ev, sig

@@ -30,6 +30,7 @@
 #  §10  Changelog (inverso)
 #  §11  Próximos pasos
 #  §12  Notas técnicas y lecciones
+#  §13  Front-end "Crimson Black" (UI v4) — 2026-05-20
 ################################################################################
 
 
@@ -633,6 +634,126 @@ NOMENCLATURA
     "R" = riesgo por trade. PnL en R significa "múltiplos del riesgo arriesgado".
     Un trade que da +1R ganó lo mismo que se arriesgó. Es la unidad estándar
     para comparar trades de tamaños distintos.
+
+
+################################################################################
+#  §13  FRONT-END "CRIMSON BLACK"  (UI v4)  —  2026-05-20
+################################################################################
+
+PROPÓSITO
+    Adaptación del dashboard a un nuevo sistema visual rojo/negro pensado para
+    hosting público (demo del bot). TODA la funcionalidad previa se preservó —
+    cambia exclusivamente la capa de presentación.
+
+ALCANCE Y NO-ALCANCE
+    Se modifica   :  dashboard/app.py (rewrite del CSS y look-and-feel),
+                     .streamlit/config.toml (tema oscuro nativo de Streamlit).
+    Se preserva   :  imports, settings, AuditStore, MT5Client, lógica de tabs,
+                     filtros, callbacks (set_take_trades), backtest_symbol,
+                     _format_summary, descargas .txt, st.dataframe, st.metric,
+                     st.toggle, splash + sidebar + 5 tabs top-level + sub-tabs
+                     de Datos. Mismos nombres de session_state keys.
+    NO se toca    :  engine/, strategies/, risk/, executor/, signals/, audit/,
+                     learning/, scripts/, config/symbols.yaml, config/runtime.yaml,
+                     pyproject.toml.
+    Backup        :  dashboard/app.py.bak  (versión anterior intacta por si se
+                     quiere revertir con `mv app.py.bak app.py`).
+
+SISTEMA DE DISEÑO — "CRIMSON BLACK"
+    Paleta principal
+      · Fondo base    : #08080a → #0f0f12 (gradiente vertical)
+      · Halo radial   : rgba(239, 68, 68, 0.10) arriba-izquierda
+      · Tarjetas      : rgba(20, 20, 26, 0.78) con blur(8px)
+      · Borde tarjeta : rgba(220, 38, 38, 0.18) (hover sube a 0.55)
+      · Rojo primario : #ef4444  (var --tri-red)
+      · Rojo profundo : #b91c1c  (var --tri-red-deep)
+      · Rojo glow     : rgba(239, 68, 68, 0.35)
+      · Gradiente     : linear-gradient(135deg, #ef4444, #b91c1c)
+      · Texto         : #f5f5f7 (base) / #a0a0aa (muted) / #6b6b76 (dim)
+      · Pills semánticas mantenidas:
+            green  → estados positivos / cuenta OK
+            blue   → estados informativos (NEW, PLACED, FILLED)
+            orange → atención (REJECTED_CONFLUENCE, modo forzado)
+            red    → rechazos / cierres en SL / cuenta desconectada
+            gray   → neutro
+            accent → rojo (sustituye al cyan/violeta anterior)
+
+    Componentes con tratamiento nuevo
+      · Tabs           : pill activa con gradiente rojo + sombra glow.
+      · Botones        : borde rojo translúcido; hover → gradiente + lift -1px.
+      · Cards          : barra lateral roja de 3px; hover sube borde y eleva 2px.
+      · KPI            : barra superior con gradiente; lift en hover.
+      · Header         : gradiente radial rojo con borde glowing.
+      · Splash         : marca TRIARCH con gradiente + text-shadow rojo difuso.
+      · Sidebar        : fondo casi negro con halo rojo arriba, bloques
+                         hover-able con borde que se enciende.
+      · Scrollbar      : gradiente rojo profundo (solo navegadores webkit).
+      · st.metric      : envuelta con borde rojo translúcido + hover.
+
+    Tipografía
+      · Inter / Segoe UI / system-ui (fallback). Letter-spacing sutil.
+      · Pesos: 600-900 para títulos, 700 para labels uppercase.
+
+CAMBIOS DE COPY / TEXTO
+    Solo se actualizó la etiqueta de versión en el footer del sidebar:
+        "v0.3 · UI v3"  →  "v0.4 · UI v4 · Crimson Black"
+    El resto del texto en español queda idéntico (filtros, captions, mensajes
+    de empty state, tooltips de los toggles, etc.).
+
+CONFIG.TOML DE STREAMLIT  (.streamlit/config.toml)
+    Nuevo archivo para que widgets nativos respeten la paleta sin depender
+    solo del CSS injectado:
+        [theme]
+        base = "dark"
+        primaryColor          = "#ef4444"
+        backgroundColor       = "#0f0f12"
+        secondaryBackgroundColor = "#14141a"
+        textColor             = "#f5f5f7"
+        font                  = "sans serif"
+
+        [server]   headless = true,  runOnSave = false
+        [browser]  gatherUsageStats = false
+
+CÓMO LANZARLO  (sin cambios respecto a antes)
+    Desarrollo directo del dashboard:
+        streamlit run dashboard/app.py
+    Combinado con loop principal (lo recomendado para hosting):
+        python -m scripts.serve --tick 30 --port 8765
+    El config.toml se aplica automáticamente al estar en la raíz del proyecto.
+
+ROLLBACK
+    Si la UI v4 da problemas en algún navegador o en mobile, basta con:
+        cd dashboard
+        mv app.py app.py.v4
+        mv app.py.bak app.py
+    Funcionalidad y datos intactos.
+
+CHECKLIST DE VERIFICACIÓN  (correr antes de deploy)
+    [ ] streamlit run dashboard/app.py  arranca sin errores.
+    [ ] El splash aparece la primera vez y se cierra con "Entrar al bot →".
+    [ ] Sidebar muestra brand, entorno, cuenta MT5 (o "desconectada"),
+        kill switch, atajos y footer "v0.4 · UI v4 · Crimson Black".
+    [ ] Tab Inicio renderiza 4 metrics de cuenta + KPI grid 24h + tarjetas
+        por activo con dot/pill correctas.
+    [ ] Tab Vivo & Control: el toggle "Trades reales en MT5" persiste cambios
+        en config/runtime.yaml (verificar con set_take_trades).
+    [ ] Tab Decisiones: filtros (activo, estrategia, estado, dirección, días)
+        aplican y la descarga .txt baja un archivo nombrado correctamente.
+    [ ] Tab Backtesting: el botón "▶ Correr backtest" llama a backtest_symbol
+        sin tocar la lógica, y la descarga .txt invoca _format_summary.
+    [ ] Tab Datos sub-tabs Signals/Evals/Stats muestran los st.dataframe ok.
+    [ ] No quedaron referencias a la paleta cyan/violeta anterior
+        (--tri-accent / --tri-accent-2) en el render final.
+
+NOTA PARA FUTURAS ITERACIONES DE UI
+    Si se quiere migrar a un front desacoplado (Next.js + FastAPI), las
+    fuentes de datos son las que ya están en uso:
+      · AuditStore (audit/store.py)   →  list_signals / list_evals
+      · MT5Client (data_layer/...)    →  account_info / get_rates
+      · config.runtime                →  get_take_trades / set_take_trades
+      · scripts.backtest              →  backtest_symbol / _format_summary
+    En ese caso, esta versión Streamlit puede coexistir como "panel interno"
+    mientras la web pública la sirve un backend más liviano.
 
 
 ################################################################################

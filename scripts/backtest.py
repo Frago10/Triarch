@@ -24,6 +24,7 @@ Usable también desde Python (ej. dashboard):
     from scripts.backtest import backtest_symbol
     res = backtest_symbol(cfg, confluence, from_date=..., to_date=...)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,7 +37,13 @@ from typing import Iterable
 import pandas as pd
 from loguru import logger
 
-from config.settings import REPO_ROOT, SymbolConfig, TriarchSettings, get_settings, get_symbols
+from config.settings import (
+    REPO_ROOT,
+    SymbolConfig,
+    TriarchSettings,
+    get_settings,
+    get_symbols,
+)
 from confluence.filter import build_confluence_for
 from engine.indicators import add_default_indicators, opening_range
 from signals.schema import Direction, Signal
@@ -74,7 +81,11 @@ def _resolve_trade(sig: Signal, future_bars: pd.DataFrame, max_bars: int = 200) 
             return {"outcome": "TP", "bars_held": i + 1, "pnl_r": reward / risk}
 
     last_close = float(look.iloc[-1]["close"]) if len(look) else sig.entry
-    pnl_pts = (last_close - sig.entry) if sig.direction is Direction.LONG else (sig.entry - last_close)
+    pnl_pts = (
+        (last_close - sig.entry)
+        if sig.direction is Direction.LONG
+        else (sig.entry - last_close)
+    )
     return {"outcome": "TIMEOUT", "bars_held": len(look), "pnl_r": pnl_pts / risk}
 
 
@@ -138,18 +149,24 @@ def backtest_symbol(
     parquet_path = HISTORY_DIR / f"{cfg.name}_{cfg.timeframe}.parquet"
     if not parquet_path.exists():
         return {
-            "symbol": cfg.name, "timeframe": cfg.timeframe,
+            "symbol": cfg.name,
+            "timeframe": cfg.timeframe,
             "error": f"No hay histórico en {parquet_path.name}. Corre scripts.fetch_history primero.",
         }
 
     df_full = pd.read_parquet(parquet_path).sort_values("time").reset_index(drop=True)
     if from_date is not None:
-        df_full = df_full[df_full["time"] >= pd.Timestamp(from_date)].reset_index(drop=True)
+        df_full = df_full[df_full["time"] >= pd.Timestamp(from_date)].reset_index(
+            drop=True
+        )
     if to_date is not None:
-        df_full = df_full[df_full["time"] <= pd.Timestamp(to_date)].reset_index(drop=True)
+        df_full = df_full[df_full["time"] <= pd.Timestamp(to_date)].reset_index(
+            drop=True
+        )
     if len(df_full) < MIN_BARS_FOR_EVAL + WARMUP_BARS:
         return {
-            "symbol": cfg.name, "timeframe": cfg.timeframe,
+            "symbol": cfg.name,
+            "timeframe": cfg.timeframe,
             "error": f"Histórico insuficiente: {len(df_full)} velas.",
         }
 
@@ -168,7 +185,8 @@ def backtest_symbol(
         df_ind = opening_range(df_ind, minutes=15).reset_index(drop=True)
     except Exception as exc:  # noqa: BLE001
         return {
-            "symbol": cfg.name, "timeframe": cfg.timeframe,
+            "symbol": cfg.name,
+            "timeframe": cfg.timeframe,
             "error": f"Fallo al calcular indicadores: {exc}",
         }
 
@@ -183,7 +201,11 @@ def backtest_symbol(
 
     def _in_session(ts) -> bool:
         t = ts.time() if hasattr(ts, "time") else ts
-        return (sess_start <= t <= sess_end) if sess_start <= sess_end else (t >= sess_start or t <= sess_end)
+        return (
+            (sess_start <= t <= sess_end)
+            if sess_start <= sess_end
+            else (t >= sess_start or t <= sess_end)
+        )
 
     for i in range(WARMUP_BARS, len(df_full) - 1):
         window = df_ind.iloc[max(0, i - bar_lookback) : i + 1]
@@ -237,24 +259,28 @@ def backtest_symbol(
         if future.empty:
             break
         outcome = _resolve_trade(chosen, future)
-        trades.append({
-            "time": bar_time,
-            "symbol": cfg.name,
-            "strategy": chosen.strategy,
-            "direction": chosen.direction.value,
-            "entry": chosen.entry,
-            "sl": chosen.stop_loss,
-            "tp1": chosen.take_profit_1,
-            "rr_planned": chosen.rr_ratio,
-            "score": chosen.score,
-            "outcome": outcome["outcome"],
-            "bars_held": outcome["bars_held"],
-            "pnl_r": outcome["pnl_r"],
-        })
+        trades.append(
+            {
+                "time": bar_time,
+                "symbol": cfg.name,
+                "strategy": chosen.strategy,
+                "direction": chosen.direction.value,
+                "entry": chosen.entry,
+                "sl": chosen.stop_loss,
+                "tp1": chosen.take_profit_1,
+                "rr_planned": chosen.rr_ratio,
+                "score": chosen.score,
+                "outcome": outcome["outcome"],
+                "bars_held": outcome["bars_held"],
+                "pnl_r": outcome["pnl_r"],
+            }
+        )
 
     if not trades:
         return {
-            "symbol": cfg.name, "timeframe": cfg.timeframe, "trades": 0,
+            "symbol": cfg.name,
+            "timeframe": cfg.timeframe,
+            "trades": 0,
             "note": (
                 "Sin señales que pasaran todos los filtros. "
                 f"Descartadas: {skipped['min_rr']} por RR<{min_rr}, "
@@ -262,7 +288,8 @@ def backtest_symbol(
                 f"{skipped['out_of_window']} fuera de sesión."
             ),
             "skipped": skipped,
-            "trade_log": [], "equity_curve": [],
+            "trade_log": [],
+            "equity_curve": [],
         }
 
     df_t = pd.DataFrame(trades).sort_values("time").reset_index(drop=True)
@@ -326,7 +353,9 @@ def backtest_symbol(
         "wins": wins,
         "losses": losses,
         "win_rate": round(win_rate, 4),
-        "profit_factor": round(profit_factor, 3) if math.isfinite(profit_factor) else float("inf"),
+        "profit_factor": (
+            round(profit_factor, 3) if math.isfinite(profit_factor) else float("inf")
+        ),
         "expectancy_r": round(expectancy, 4),
         "avg_win_r": round(avg_win, 4),
         "avg_loss_r": round(avg_loss, 4),
@@ -341,7 +370,9 @@ def backtest_symbol(
         "sortino_ratio": round(sortino, 3),
         "sqn": round(sqn_val, 3),
         "by_strategy": by_strat,
-        "trade_log": df_t.assign(time=df_t["time"].astype(str)).drop(columns=["week"]).to_dict(orient="records"),
+        "trade_log": df_t.assign(time=df_t["time"].astype(str))
+        .drop(columns=["week"])
+        .to_dict(orient="records"),
         "equity_curve": equity_points,
     }
 
@@ -352,7 +383,9 @@ def backtest_symbol(
 def _format_summary(results: list[dict], from_date, to_date) -> str:
     lines: list[str] = []
     lines.append("=" * 72)
-    lines.append(f"Triarch backtest — {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
+    lines.append(
+        f"Triarch backtest — {datetime.now(timezone.utc).isoformat(timespec='seconds')}"
+    )
     if from_date:
         lines.append(f"Desde: {from_date.date()}")
     if to_date:
@@ -360,7 +393,9 @@ def _format_summary(results: list[dict], from_date, to_date) -> str:
     lines.append("=" * 72)
     for r in results:
         lines.append("")
-        lines.append(f"▶ {r['symbol']}  [{r.get('timeframe','?')}]  perfil={r.get('profile','?')}")
+        lines.append(
+            f"▶ {r['symbol']}  [{r.get('timeframe','?')}]  perfil={r.get('profile','?')}"
+        )
         if "error" in r:
             lines.append(f"   ❌ {r['error']}")
             continue
@@ -369,13 +404,25 @@ def _format_summary(results: list[dict], from_date, to_date) -> str:
             continue
         rng = r.get("range", {})
         lines.append(f"   rango: {rng.get('from','?')} → {rng.get('to','?')}")
-        lines.append(f"   trades={r['trades']}  wins={r['wins']}  losses={r['losses']}  WR={r['win_rate']:.1%}")
-        pf = r['profit_factor']
-        pf_str = f"{pf:.2f}" if isinstance(pf, (int, float)) and math.isfinite(pf) else "∞"
-        lines.append(f"   PF={pf_str}  E={r['expectancy_r']:+.3f}R  Sharpe={r['sharpe_ratio']}  Sortino={r['sortino_ratio']}  SQN={r['sqn']}")
-        lines.append(f"   avg win={r['avg_win_r']:+.3f}R  avg loss={r['avg_loss_r']:+.3f}R  largest +{r['largest_win_r']:+.2f} / {r['largest_loss_r']:+.2f}R")
-        lines.append(f"   max DD={r['max_drawdown_r']}R  rachas: +{r['longest_win_streak']} / -{r['longest_loss_streak']}  avg duración={r['avg_bars_held']} velas")
-        lines.append(f"   trades/semana ≈ {r['trades_per_week_avg']} (objetivo {r['target_trades_wk']})")
+        lines.append(
+            f"   trades={r['trades']}  wins={r['wins']}  losses={r['losses']}  WR={r['win_rate']:.1%}"
+        )
+        pf = r["profit_factor"]
+        pf_str = (
+            f"{pf:.2f}" if isinstance(pf, (int, float)) and math.isfinite(pf) else "∞"
+        )
+        lines.append(
+            f"   PF={pf_str}  E={r['expectancy_r']:+.3f}R  Sharpe={r['sharpe_ratio']}  Sortino={r['sortino_ratio']}  SQN={r['sqn']}"
+        )
+        lines.append(
+            f"   avg win={r['avg_win_r']:+.3f}R  avg loss={r['avg_loss_r']:+.3f}R  largest +{r['largest_win_r']:+.2f} / {r['largest_loss_r']:+.2f}R"
+        )
+        lines.append(
+            f"   max DD={r['max_drawdown_r']}R  rachas: +{r['longest_win_streak']} / -{r['longest_loss_streak']}  avg duración={r['avg_bars_held']} velas"
+        )
+        lines.append(
+            f"   trades/semana ≈ {r['trades_per_week_avg']} (objetivo {r['target_trades_wk']})"
+        )
         sk = r.get("skipped") or {}
         if sk:
             lines.append(
@@ -383,13 +430,19 @@ def _format_summary(results: list[dict], from_date, to_date) -> str:
                 f"cap-diario={sk.get('daily_cap',0)}  fuera-sesión={sk.get('out_of_window',0)}"
             )
         for sname, s in (r.get("by_strategy") or {}).items():
-            lines.append(f"     · {sname}: {int(s['trades'])} trades  E={s['expectancy_r']:+.3f}R  total={s['total_r']:+.2f}R")
+            lines.append(
+                f"     · {sname}: {int(s['trades'])} trades  E={s['expectancy_r']:+.3f}R  total={s['total_r']:+.2f}R"
+            )
     return "\n".join(lines)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Triarch — backtest sobre histórico cacheado")
-    parser.add_argument("--symbol", help="Símbolo único (default: todos los de symbols.yaml)")
+    parser = argparse.ArgumentParser(
+        description="Triarch — backtest sobre histórico cacheado"
+    )
+    parser.add_argument(
+        "--symbol", help="Símbolo único (default: todos los de symbols.yaml)"
+    )
     parser.add_argument("--timeframe", help="Override del TF (default: el del yaml)")
     parser.add_argument("--from", dest="from_date", help="Fecha ISO YYYY-MM-DD")
     parser.add_argument("--to", dest="to_date", help="Fecha ISO YYYY-MM-DD")
@@ -412,11 +465,13 @@ def main() -> int:
 
     from_date = (
         datetime.fromisoformat(args.from_date).replace(tzinfo=timezone.utc)
-        if args.from_date else None
+        if args.from_date
+        else None
     )
     to_date = (
         datetime.fromisoformat(args.to_date).replace(tzinfo=timezone.utc)
-        if args.to_date else None
+        if args.to_date
+        else None
     )
 
     results = [
@@ -432,7 +487,9 @@ def main() -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         if out_path.suffix.lower() == ".json":
             # Limpiar equity_curve / trade_log opcionalmente para que no sea gigante
-            out_path.write_text(json.dumps(results, indent=2, default=str), encoding="utf-8")
+            out_path.write_text(
+                json.dumps(results, indent=2, default=str), encoding="utf-8"
+            )
         else:
             out_path.write_text(summary, encoding="utf-8")
         logger.info(f"Resumen guardado en {out_path}")

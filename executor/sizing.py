@@ -4,6 +4,7 @@ Position sizing.
 Default: risk_pct (riesgo X% del equity por trade).
   lot = (equity * risk_pct/100) / (risk_pts * pip_value_per_lot)
 """
+
 from __future__ import annotations
 
 from loguru import logger

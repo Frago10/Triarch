@@ -1,4 +1,5 @@
 """Tests del Risk Manager."""
+
 from __future__ import annotations
 
 from datetime import datetime, time as dtime, timezone

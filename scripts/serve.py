@@ -10,6 +10,7 @@ Uso:
 
 Ctrl+C detiene ambos limpiamente (cierra MT5).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,7 +25,6 @@ from loguru import logger
 from config.settings import get_settings
 from data_layer.mt5_client import MT5Client
 from engine.orchestrator import Orchestrator
-
 
 _stop = threading.Event()
 
@@ -48,10 +48,17 @@ def _spawn_dashboard(port: int) -> subprocess.Popen:
         raise FileNotFoundError(f"No se encontró el dashboard en {app_path}")
 
     cmd = [
-        sys.executable, "-m", "streamlit", "run", str(app_path),
-        "--server.port", str(port),
-        "--server.headless", "true",
-        "--browser.gatherUsageStats", "false",
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false",
     ]
     logger.info(f"[serve] Dashboard  →  http://localhost:{port}")
     return subprocess.Popen(cmd, cwd=str(project_root))
@@ -61,8 +68,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Triarch — corre el loop live y sirve el dashboard en un puerto."
     )
-    parser.add_argument("--tick", type=int, default=60, help="Segundos entre ticks (default 60)")
-    parser.add_argument("--port", type=int, default=8501, help="Puerto del dashboard (default 8501)")
+    parser.add_argument(
+        "--tick", type=int, default=60, help="Segundos entre ticks (default 60)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8501, help="Puerto del dashboard (default 8501)"
+    )
     args = parser.parse_args()
 
     settings = get_settings()

@@ -4,6 +4,7 @@ Triarch — indicadores técnicos.
 Implementaciones desde primeros principios sobre pandas. No dependemos de TA-Lib
 para mantener portabilidad. Para volumen serio, en v2 evaluamos `pandas-ta`.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -25,7 +26,9 @@ def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     """
     h, l, c = df["high"], df["low"], df["close"]
     prev_c = c.shift(1)
-    tr = pd.concat([(h - l), (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
+    tr = pd.concat([(h - l), (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(
+        axis=1
+    )
     return tr.ewm(span=period, adjust=False).mean()
 
 
@@ -57,7 +60,9 @@ def vwap(df: pd.DataFrame, group_by_day: bool = True) -> pd.Series:
     return cum_pv / cum_vol.replace(0, np.nan)
 
 
-def bollinger(series: pd.Series, period: int = 20, stdev_mult: float = 2.0) -> pd.DataFrame:
+def bollinger(
+    series: pd.Series, period: int = 20, stdev_mult: float = 2.0
+) -> pd.DataFrame:
     """Bollinger Bands. Devuelve DataFrame con columnas mid, upper, lower, width."""
     mid = series.rolling(period).mean()
     sd = series.rolling(period).std()
@@ -89,12 +94,16 @@ def opening_range(df: pd.DataFrame, minutes: int = 15) -> pd.DataFrame:
         or_low = or_window["low"].min()
         or_rows.append({"date": day, "or_high": or_high, "or_low": or_low})
 
-    or_df = pd.DataFrame(or_rows).set_index("date") if or_rows else pd.DataFrame(
-        columns=["or_high", "or_low"]
+    or_df = (
+        pd.DataFrame(or_rows).set_index("date")
+        if or_rows
+        else pd.DataFrame(columns=["or_high", "or_low"])
     )
 
     df = df.merge(or_df, left_on="date", right_index=True, how="left")
-    df["or_complete"] = df["minute_of_day"] >= (df.groupby("date")["minute_of_day"].transform("min") + minutes)
+    df["or_complete"] = df["minute_of_day"] >= (
+        df.groupby("date")["minute_of_day"].transform("min") + minutes
+    )
     return df.drop(columns=["date", "minute_of_day"])
 
 

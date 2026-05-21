@@ -18,6 +18,7 @@ Filtros (anti-trend protection):
 Risk:
   - SL puede salir muy chico si la barra trigger es pequeña — minimo SL = 0.5*ATR.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -48,13 +49,19 @@ class VWAPMeanReversionStrategy(Strategy):
     def evaluate(self, ctx: StrategyContext) -> tuple[Eval, Signal | None]:
         df = ctx.df
         if len(df) < 50:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"),
+                None,
+            )
 
         last = df.iloc[-1]
         atr = last.get("atr_14", np.nan)
         vwap = last.get("vwap", np.nan)
         if pd.isna(atr) or atr <= 0 or pd.isna(vwap):
-            return self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"),
+                None,
+            )
 
         close = last["close"]
         deviation = close - vwap
@@ -68,7 +75,9 @@ class VWAPMeanReversionStrategy(Strategy):
             if ema_spread > self.skip_strong_trend_atr:
                 return (
                     self._make_eval(
-                        ctx, detected=False, blocked_by="strong_trend",
+                        ctx,
+                        detected=False,
+                        blocked_by="strong_trend",
                         blocked_detail=f"ema_spread {ema_spread:.2f} > {self.skip_strong_trend_atr}",
                     ),
                     None,
@@ -77,13 +86,15 @@ class VWAPMeanReversionStrategy(Strategy):
         # ─── Detección setup ───
         direction: Direction | None = None
         if deviation_in_atr >= self.deviation_atr:
-            direction = Direction.SHORT      # precio muy arriba → reversión bajista
+            direction = Direction.SHORT  # precio muy arriba → reversión bajista
         elif deviation_in_atr <= -self.deviation_atr:
-            direction = Direction.LONG       # precio muy abajo → reversión alcista
+            direction = Direction.LONG  # precio muy abajo → reversión alcista
         else:
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="no_deviation",
+                    ctx,
+                    detected=False,
+                    blocked_by="no_deviation",
                     blocked_detail=f"dev={deviation_in_atr:.2f} ATR",
                 ),
                 None,
@@ -99,8 +110,8 @@ class VWAPMeanReversionStrategy(Strategy):
                 risk_pts = entry - stop_loss
             else:
                 stop_loss = sl_raw
-            take_profit_1 = vwap                                    # vuelta a VWAP
-            take_profit_2 = vwap + 0.3 * abs(deviation)             # ligera continuación
+            take_profit_1 = vwap  # vuelta a VWAP
+            take_profit_2 = vwap + 0.3 * abs(deviation)  # ligera continuación
         else:
             sl_raw = last["high"] + 0.1 * atr
             risk_pts = sl_raw - entry
@@ -134,8 +145,14 @@ class VWAPMeanReversionStrategy(Strategy):
                 rsi_bonus = (rsi - 70) / 30
             else:
                 rsi_bonus = 0.0
-        score = float(np.clip(0.4 + 0.4 * deviation_strength + 0.2 * rsi_bonus, 0.0, 1.0))
-        confidence = Confidence.HIGH if score >= 0.7 else Confidence.MEDIUM if score >= 0.5 else Confidence.LOW
+        score = float(
+            np.clip(0.4 + 0.4 * deviation_strength + 0.2 * rsi_bonus, 0.0, 1.0)
+        )
+        confidence = (
+            Confidence.HIGH
+            if score >= 0.7
+            else Confidence.MEDIUM if score >= 0.5 else Confidence.LOW
+        )
 
         signal = Signal(
             symbol=ctx.symbol_cfg.name,
@@ -163,8 +180,12 @@ class VWAPMeanReversionStrategy(Strategy):
         )
         return (
             self._make_eval(
-                ctx, detected=True, direction=direction, score=score,
-                proposed_entry=float(entry), emitted_signal_id=signal.signal_id,
+                ctx,
+                detected=True,
+                direction=direction,
+                score=score,
+                proposed_entry=float(entry),
+                emitted_signal_id=signal.signal_id,
             ),
             signal,
         )

@@ -10,6 +10,7 @@ Hoy controla:
 Diseñado para que cualquier proceso (dashboard Streamlit, CLI, el propio loop)
 pueda leer/escribir sin contención: el archivo es chico y el lock no es crítico.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

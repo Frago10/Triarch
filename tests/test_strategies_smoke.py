@@ -6,6 +6,7 @@ No probamos lógica fina (eso vendrá con backtest histórico). Solo:
   - Devuelven Eval válido.
   - Cuando deberían emitir, emiten.
 """
+
 from __future__ import annotations
 
 import numpy as np

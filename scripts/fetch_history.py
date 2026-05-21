@@ -14,6 +14,7 @@ Uso:
     # Sobreescribe TF del yaml
     python -m scripts.fetch_history --symbol EURUSD --timeframe M5 --years 2
 """
+
 from __future__ import annotations
 
 import argparse
@@ -105,19 +106,29 @@ def fetch_one(
         merged = df
 
     merged.to_parquet(path, index=False)
-    logger.info(f"   {name}: {len(df)} velas nuevas — total {len(merged)} → {path.name}")
+    logger.info(
+        f"   {name}: {len(df)} velas nuevas — total {len(merged)} → {path.name}"
+    )
     return len(df)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Triarch — bajar histórico MT5 a parquet")
-    parser.add_argument("--symbol", help="Símbolo único (default: todos los de symbols.yaml)")
+    parser = argparse.ArgumentParser(
+        description="Triarch — bajar histórico MT5 a parquet"
+    )
+    parser.add_argument(
+        "--symbol", help="Símbolo único (default: todos los de symbols.yaml)"
+    )
     parser.add_argument(
         "--timeframe",
         help="Override del TF (default: el del yaml por activo)",
     )
-    parser.add_argument("--years", type=int, default=1, help="Rango hacia atrás en años (default 1)")
-    parser.add_argument("--from", dest="from_date", help="Fecha ISO YYYY-MM-DD (override de --years)")
+    parser.add_argument(
+        "--years", type=int, default=1, help="Rango hacia atrás en años (default 1)"
+    )
+    parser.add_argument(
+        "--from", dest="from_date", help="Fecha ISO YYYY-MM-DD (override de --years)"
+    )
     args = parser.parse_args()
 
     if args.from_date:
@@ -133,7 +144,9 @@ def main() -> int:
 
     client = MT5Client()
     if not client.initialize():
-        logger.error("No se pudo conectar a MT5. Revisa .env y que el terminal esté abierto.")
+        logger.error(
+            "No se pudo conectar a MT5. Revisa .env y que el terminal esté abierto."
+        )
         return 1
 
     total = 0

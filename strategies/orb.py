@@ -15,6 +15,7 @@ Score: combinación de:
   - Magnitud del breakout vs ATR (mayor = mejor).
   - Cercanía del precio al cierre de OR (menor = mejor: rotura limpia).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -44,7 +45,10 @@ class ORBStrategy(Strategy):
     def evaluate(self, ctx: StrategyContext) -> tuple[Eval, Signal | None]:
         df = ctx.df
         if len(df) < 50:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"),
+                None,
+            )
 
         # Asegurar OR calculado
         if "or_high" not in df.columns:
@@ -59,20 +63,28 @@ class ORBStrategy(Strategy):
 
         if not last.get("or_complete", False):
             return (
-                self._make_eval(ctx, detected=False, blocked_by="or_window_not_finished"),
+                self._make_eval(
+                    ctx, detected=False, blocked_by="or_window_not_finished"
+                ),
                 None,
             )
 
         atr = last.get("atr_14", np.nan)
         if pd.isna(atr) or atr <= 0:
-            return self._make_eval(ctx, detected=False, blocked_by="atr_not_ready"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="atr_not_ready"),
+                None,
+            )
 
         close = last["close"]
         or_high = last["or_high"]
         or_low = last["or_low"]
         or_range = or_high - or_low
         if or_range <= 0:
-            return self._make_eval(ctx, detected=False, blocked_by="or_range_zero"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="or_range_zero"),
+                None,
+            )
 
         # ─── Detección de setup ───
         direction: Direction | None = None
@@ -116,10 +128,14 @@ class ORBStrategy(Strategy):
 
         # ─── Score (heurístico simple) ───
         # Magnitud del breakout vs ATR (clip 0..1)
-        breakout_strength = min(abs(close - (or_high if direction == Direction.LONG else or_low)) / atr, 1.0)
+        breakout_strength = min(
+            abs(close - (or_high if direction == Direction.LONG else or_low)) / atr, 1.0
+        )
         # Penaliza OR muy chico (puede ser noise)
         or_atr_ratio = min(or_range / atr, 1.5) / 1.5
-        score = float(np.clip(0.4 + 0.4 * breakout_strength + 0.2 * or_atr_ratio, 0.0, 1.0))
+        score = float(
+            np.clip(0.4 + 0.4 * breakout_strength + 0.2 * or_atr_ratio, 0.0, 1.0)
+        )
 
         if score >= 0.7:
             confidence = Confidence.HIGH
@@ -150,9 +166,21 @@ class ORBStrategy(Strategy):
                 "or_range": float(or_range),
                 "or_atr_ratio": float(or_range / atr),
                 "breakout_strength": float(breakout_strength),
-                "ema_9": float(last.get("ema_9", np.nan)) if not pd.isna(last.get("ema_9", np.nan)) else None,
-                "ema_21": float(last.get("ema_21", np.nan)) if not pd.isna(last.get("ema_21", np.nan)) else None,
-                "rsi_14": float(last.get("rsi_14", np.nan)) if not pd.isna(last.get("rsi_14", np.nan)) else None,
+                "ema_9": (
+                    float(last.get("ema_9", np.nan))
+                    if not pd.isna(last.get("ema_9", np.nan))
+                    else None
+                ),
+                "ema_21": (
+                    float(last.get("ema_21", np.nan))
+                    if not pd.isna(last.get("ema_21", np.nan))
+                    else None
+                ),
+                "rsi_14": (
+                    float(last.get("rsi_14", np.nan))
+                    if not pd.isna(last.get("rsi_14", np.nan))
+                    else None
+                ),
             },
         )
 

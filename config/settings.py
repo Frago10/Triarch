@@ -3,6 +3,7 @@ Triarch — global settings.
 
 Carga `.env` y `config/symbols.yaml`. Punto único de verdad de configuración.
 """
+
 from __future__ import annotations
 
 from datetime import time as dtime
@@ -114,6 +115,7 @@ class ConfluenceOverride(BaseModel):
       • Perfil scalper  → permisivo: 1 señal basta (un scalper no puede
         esperar a que 2 estrategias coincidan en la misma vela).
     """
+
     min_signals: int = 2
     min_families: int = 2
     min_combined_score: float = 1.0
@@ -126,13 +128,13 @@ class SymbolConfig(BaseModel):
     family: str  # index | commodity | fx
     timeframe: str = "M15"
     mode: ExecutionMode = ExecutionMode.SIGNAL_ONLY
-    take_trades: bool = False            # switch live: si False → fuerza SIGNAL_ONLY
-    profile: str = "balanced"            # quality | scalper | balanced
-    target_trades_wk: int = 0            # objetivo trades/semana (referencia)
+    take_trades: bool = False  # switch live: si False → fuerza SIGNAL_ONLY
+    profile: str = "balanced"  # quality | scalper | balanced
+    target_trades_wk: int = 0  # objetivo trades/semana (referencia)
     session_utc: SessionWindow
     risk: RiskOverride = Field(default_factory=RiskOverride)
     position_sizing: PositionSizing = Field(default_factory=PositionSizing)
-    confluence: ConfluenceOverride | None = None   # None → usa defaults del .env
+    confluence: ConfluenceOverride | None = None  # None → usa defaults del .env
     strategies: list[str] = Field(default_factory=list)
 
 

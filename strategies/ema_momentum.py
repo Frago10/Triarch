@@ -19,6 +19,7 @@ Niveles:
 Score:
   - Más alto si la pendiente es fuerte y el pullback es preciso (close ~ ema_21).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -49,15 +50,24 @@ class EMAMomentumStrategy(Strategy):
     def evaluate(self, ctx: StrategyContext) -> tuple[Eval, Signal | None]:
         df = ctx.df
         if len(df) < 60:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"), None
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="not_enough_bars"),
+                None,
+            )
 
         last = df.iloc[-1]
         atr = last.get("atr_14", np.nan)
         ema_9 = last.get("ema_9", np.nan)
         ema_21 = last.get("ema_21", np.nan)
         ema_50 = last.get("ema_50", np.nan)
-        if any(pd.isna(x) or (x is not None and x != x) for x in (atr, ema_9, ema_21, ema_50)):
-            return self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"), None
+        if any(
+            pd.isna(x) or (x is not None and x != x)
+            for x in (atr, ema_9, ema_21, ema_50)
+        ):
+            return (
+                self._make_eval(ctx, detected=False, blocked_by="indicators_not_ready"),
+                None,
+            )
         if atr <= 0:
             return self._make_eval(ctx, detected=False, blocked_by="atr_zero"), None
 
@@ -68,7 +78,12 @@ class EMAMomentumStrategy(Strategy):
 
         # Pendiente de ema_21 — diff entre la actual y la de hace `slope_lookback` barras
         if len(df) <= self.slope_lookback:
-            return self._make_eval(ctx, detected=False, blocked_by="not_enough_bars_slope"), None
+            return (
+                self._make_eval(
+                    ctx, detected=False, blocked_by="not_enough_bars_slope"
+                ),
+                None,
+            )
         slope = ema_21 - df["ema_21"].iloc[-1 - self.slope_lookback]
         slope_in_atr = slope / atr if atr > 0 else 0.0
 
@@ -80,7 +95,9 @@ class EMAMomentumStrategy(Strategy):
         else:
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="no_alignment",
+                    ctx,
+                    detected=False,
+                    blocked_by="no_alignment",
                     blocked_detail=f"long={long_alignment} short={short_alignment} slope={slope_in_atr:.3f}",
                 ),
                 None,
@@ -102,7 +119,9 @@ class EMAMomentumStrategy(Strategy):
         if not (touched and bounced):
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="no_pullback",
+                    ctx,
+                    detected=False,
+                    blocked_by="no_pullback",
                     blocked_detail=f"touched={touched} bounced={bounced}",
                 ),
                 None,
@@ -111,7 +130,9 @@ class EMAMomentumStrategy(Strategy):
         if distance / atr > self.max_pullback_atr:
             return (
                 self._make_eval(
-                    ctx, detected=False, blocked_by="entry_too_far",
+                    ctx,
+                    detected=False,
+                    blocked_by="entry_too_far",
                     blocked_detail=f"distance/atr={distance/atr:.2f} > {self.max_pullback_atr}",
                 ),
                 None,
@@ -135,7 +156,9 @@ class EMAMomentumStrategy(Strategy):
             take_profit_2 = entry + rr_target_tp2_eff * risk_pts
         else:
             swing_high = recent["high"].max()
-            sl_candidate = max(ema_50 + self.sl_atr_buffer * atr, swing_high + 0.1 * atr)
+            sl_candidate = max(
+                ema_50 + self.sl_atr_buffer * atr, swing_high + 0.1 * atr
+            )
             entry = close
             risk_pts = sl_candidate - entry
             stop_loss = sl_candidate
@@ -148,10 +171,18 @@ class EMAMomentumStrategy(Strategy):
         rr_ratio = abs(take_profit_1 - entry) / risk_pts
 
         # ─── Score ───
-        slope_strength = min(abs(slope_in_atr) * 4, 1.0)            # 0..1
-        pullback_precision = 1.0 - min(distance / (self.max_pullback_atr * atr), 1.0)  # close al ema21 = 1
-        score = float(np.clip(0.35 + 0.4 * slope_strength + 0.25 * pullback_precision, 0.0, 1.0))
-        confidence = Confidence.HIGH if score >= 0.7 else Confidence.MEDIUM if score >= 0.5 else Confidence.LOW
+        slope_strength = min(abs(slope_in_atr) * 4, 1.0)  # 0..1
+        pullback_precision = 1.0 - min(
+            distance / (self.max_pullback_atr * atr), 1.0
+        )  # close al ema21 = 1
+        score = float(
+            np.clip(0.35 + 0.4 * slope_strength + 0.25 * pullback_precision, 0.0, 1.0)
+        )
+        confidence = (
+            Confidence.HIGH
+            if score >= 0.7
+            else Confidence.MEDIUM if score >= 0.5 else Confidence.LOW
+        )
 
         signal = Signal(
             symbol=ctx.symbol_cfg.name,
@@ -179,8 +210,12 @@ class EMAMomentumStrategy(Strategy):
         )
         return (
             self._make_eval(
-                ctx, detected=True, direction=direction, score=score,
-                proposed_entry=float(entry), emitted_signal_id=signal.signal_id,
+                ctx,
+                detected=True,
+                direction=direction,
+                score=score,
+                proposed_entry=float(entry),
+                emitted_signal_id=signal.signal_id,
             ),
             signal,
         )

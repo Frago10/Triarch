@@ -5,6 +5,7 @@ V1: solo logger + opcional Telegram.
 V2: Telegram con botones inline para APPROVAL.
 V2.1: Discord webhook.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -18,8 +19,7 @@ from signals.schema import Signal
 
 class Notifier(ABC):
     @abstractmethod
-    def notify(self, signal: Signal, mode: str) -> None:
-        ...
+    def notify(self, signal: Signal, mode: str) -> None: ...
 
 
 class LoggerNotifier(Notifier):

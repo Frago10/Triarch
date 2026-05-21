@@ -1,5 +1,5 @@
 """
-Triarch — Streamlit dashboard (UI v3 — splash + sidebar + tabs nuevas).
+Triarch — Streamlit dashboard (UI v4 — tema "Crimson Black").
 
 Estructura visual:
   · Splash de bienvenida (1 sola vez por sesión)
@@ -11,13 +11,15 @@ Estructura visual:
         📊 Backtesting   — correr backtest por rango + KPIs + equity curve
         📦 Datos        — sub-tabs Signals / Evals / Stats (vista cruda)
 
-Mantiene TODA la funcionalidad de la versión anterior; cambia presentación.
+Mantiene TODA la funcionalidad de versiones anteriores; cambia el sistema de
+diseño a una paleta roja/negra moderna pensada para hosting.
 
 Uso:
     streamlit run dashboard/app.py
     # o combinado con el loop:
     python -m scripts.serve --tick 30 --port 8765
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
@@ -38,177 +40,359 @@ st.set_page_config(
 )
 
 # ═══════════════════════════════════════════════════════════════
-#  CSS GLOBAL — paleta y componentes
+#  CSS GLOBAL — paleta "Crimson Black"
 # ═══════════════════════════════════════════════════════════════
 st.markdown(
     """
     <style>
     :root {
-        --tri-card-bg: rgba(38, 39, 48, 0.55);
-        --tri-card-border: rgba(120, 120, 140, 0.22);
-        --tri-card-border-hi: rgba(120, 120, 140, 0.40);
-        --tri-accent: #5eead4;            /* cyan/teal */
-        --tri-accent-2: #a78bfa;          /* violeta suave */
-        --tri-accent-soft: rgba(94, 234, 212, 0.12);
-        --tri-text-muted: #9ca3af;
-        --tri-text-dim: #6b7280;
+        --tri-bg-0: #08080a;
+        --tri-bg-1: #0f0f12;
+        --tri-bg-2: #14141a;
+        --tri-card-bg: rgba(20, 20, 26, 0.78);
+        --tri-card-bg-hi: rgba(28, 18, 22, 0.92);
+        --tri-card-border: rgba(220, 38, 38, 0.18);
+        --tri-card-border-hi: rgba(239, 68, 68, 0.55);
+
+        --tri-red: #ef4444;
+        --tri-red-deep: #b91c1c;
+        --tri-red-soft: rgba(239, 68, 68, 0.12);
+        --tri-red-glow: rgba(239, 68, 68, 0.35);
+        --tri-crimson: #dc2626;
+
+        --tri-text: #f5f5f7;
+        --tri-text-muted: #a0a0aa;
+        --tri-text-dim: #6b6b76;
+
+        --tri-grad: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+        --tri-grad-soft: linear-gradient(135deg,
+            rgba(239, 68, 68, 0.18) 0%, rgba(185, 28, 28, 0.08) 100%);
+    }
+
+    /* ─── Fondo global ─── */
+    .stApp, .main, [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(1100px 600px at 12% -10%, rgba(239, 68, 68, 0.10), transparent 60%),
+            radial-gradient(900px 500px at 100% 0%, rgba(185, 28, 28, 0.07), transparent 55%),
+            linear-gradient(180deg, var(--tri-bg-0) 0%, var(--tri-bg-1) 100%);
+        color: var(--tri-text);
+    }
+
+    /* Sidebar oscuro con halo rojo */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0a0a0d 0%, #0d0709 100%);
+        border-right: 1px solid rgba(239, 68, 68, 0.12);
+    }
+    [data-testid="stSidebar"]::after {
+        content: ""; position: absolute; inset: 0;
+        background: radial-gradient(400px 200px at 50% 0%, rgba(239, 68, 68, 0.10), transparent 70%);
+        pointer-events: none;
+    }
+
+    /* ─── Tipografía base ─── */
+    html, body, [class*="css"] {
+        font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        letter-spacing: 0.005em;
+    }
+    h1, h2, h3, h4 { color: var(--tri-text); }
+
+    /* ─── Tabs ─── */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+        background: rgba(15, 15, 18, 0.6);
+        border: 1px solid var(--tri-card-border);
+        border-radius: 14px;
+        padding: 6px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 10px;
+        color: var(--tri-text-muted);
+        padding: 8px 18px;
+        font-weight: 600;
+        transition: color 200ms ease, background 200ms ease;
+    }
+    .stTabs [aria-selected="true"] {
+        background: var(--tri-grad) !important;
+        color: #fff !important;
+        box-shadow: 0 6px 20px -8px var(--tri-red-glow);
+    }
+
+    /* ─── Botones ─── */
+    .stButton > button, .stDownloadButton > button {
+        border-radius: 10px;
+        border: 1px solid rgba(239, 68, 68, 0.30);
+        background: rgba(239, 68, 68, 0.05);
+        color: var(--tri-text);
+        font-weight: 600;
+        transition: all 200ms ease;
+    }
+    .stButton > button:hover, .stDownloadButton > button:hover {
+        background: var(--tri-grad);
+        border-color: var(--tri-red);
+        color: #fff;
+        box-shadow: 0 8px 24px -10px var(--tri-red-glow);
+        transform: translateY(-1px);
+    }
+    .stButton > button[kind="primary"] {
+        background: var(--tri-grad);
+        color: #fff;
+        border-color: var(--tri-red-deep);
+    }
+
+    /* ─── Inputs / selects / dataframe ─── */
+    [data-baseweb="select"] > div,
+    [data-baseweb="input"] > div,
+    .stDateInput input, .stNumberInput input, .stTextInput input {
+        background: rgba(15, 15, 18, 0.8) !important;
+        border: 1px solid var(--tri-card-border) !important;
+        color: var(--tri-text) !important;
+    }
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--tri-card-border);
+        border-radius: 12px;
+        overflow: hidden;
     }
 
     /* ─── Cards ─── */
     .triarch-card {
         background: var(--tri-card-bg);
         border: 1px solid var(--tri-card-border);
-        border-radius: 14px;
-        padding: 18px 20px;
+        border-radius: 16px;
+        padding: 20px 22px;
         margin-bottom: 14px;
-        backdrop-filter: blur(4px);
-        transition: border-color 200ms ease, transform 200ms ease;
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(8px);
+        transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
     }
-    .triarch-card:hover { border-color: var(--tri-card-border-hi); }
+    .triarch-card::before {
+        content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; background: var(--tri-grad);
+        opacity: 0.45; transition: opacity 220ms ease;
+    }
+    .triarch-card:hover {
+        border-color: var(--tri-card-border-hi);
+        box-shadow: 0 14px 40px -20px var(--tri-red-glow);
+        transform: translateY(-2px);
+    }
+    .triarch-card:hover::before { opacity: 1; }
     .triarch-card h3, .triarch-card h4 { margin: 0 0 6px 0; }
 
     /* ─── Pills de estado ─── */
     .triarch-pill {
         display: inline-flex; align-items: center; gap: 6px;
-        padding: 3px 11px; border-radius: 999px;
-        font-size: 0.78rem; font-weight: 600;
+        padding: 4px 12px; border-radius: 999px;
+        font-size: 0.76rem; font-weight: 700;
         margin-right: 6px;
-        letter-spacing: 0.01em;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
     }
-    .pill-green  { background: rgba(34, 197, 94, 0.15);  color: #86efac;
-                   border: 1px solid rgba(34, 197, 94, 0.30); }
-    .pill-blue   { background: rgba(59, 130, 246, 0.15); color: #93c5fd;
+    .pill-green  { background: rgba(34, 197, 94, 0.14);  color: #86efac;
+                   border: 1px solid rgba(34, 197, 94, 0.32); }
+    .pill-blue   { background: rgba(59, 130, 246, 0.12); color: #93c5fd;
                    border: 1px solid rgba(59, 130, 246, 0.30); }
     .pill-orange { background: rgba(249, 115, 22, 0.15); color: #fdba74;
-                   border: 1px solid rgba(249, 115, 22, 0.30); }
-    .pill-red    { background: rgba(239, 68, 68, 0.15);  color: #fca5a5;
-                   border: 1px solid rgba(239, 68, 68, 0.30); }
-    .pill-gray   { background: rgba(120, 120, 120, 0.15);color: #d1d5db;
-                   border: 1px solid rgba(120, 120, 120, 0.30); }
-    .pill-accent { background: var(--tri-accent-soft);   color: var(--tri-accent);
-                   border: 1px solid rgba(94, 234, 212, 0.30); }
+                   border: 1px solid rgba(249, 115, 22, 0.32); }
+    .pill-red    { background: var(--tri-red-soft);      color: #fca5a5;
+                   border: 1px solid rgba(239, 68, 68, 0.42); }
+    .pill-gray   { background: rgba(120, 120, 130, 0.13);color: #d1d1d6;
+                   border: 1px solid rgba(120, 120, 130, 0.30); }
+    .pill-accent { background: var(--tri-red-soft);      color: #fca5a5;
+                   border: 1px solid rgba(239, 68, 68, 0.45); }
 
-    /* ─── Dots (indicadores chicos) ─── */
+    /* ─── Dots ─── */
     .triarch-dot {
-        display: inline-block; width: 8px; height: 8px;
-        border-radius: 50%; margin-right: 6px; vertical-align: middle;
+        display: inline-block; width: 9px; height: 9px;
+        border-radius: 50%; margin-right: 8px; vertical-align: middle;
     }
-    .dot-green  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
-    .dot-red    { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18); }
-    .dot-orange { background: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18); }
+    .dot-green  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.20); }
+    .dot-red    { background: var(--tri-red); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.28); }
+    .dot-orange { background: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.22); }
     .dot-gray   { background: #6b7280; box-shadow: 0 0 0 3px rgba(120, 120, 120, 0.18); }
 
     /* ─── KPI grid ─── */
     .triarch-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-        gap: 12px;
-        margin: 12px 0;
+        grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+        gap: 14px;
+        margin: 14px 0;
     }
     .triarch-kpi {
         background: var(--tri-card-bg);
         border: 1px solid var(--tri-card-border);
-        border-radius: 12px;
-        padding: 14px 16px;
-        transition: transform 200ms ease, border-color 200ms ease;
+        border-radius: 14px;
+        padding: 16px 18px;
+        position: relative;
+        overflow: hidden;
+        transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
     }
-    .triarch-kpi:hover { transform: translateY(-2px); border-color: var(--tri-card-border-hi); }
+    .triarch-kpi::after {
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: var(--tri-grad);
+        opacity: 0.5;
+    }
+    .triarch-kpi:hover {
+        transform: translateY(-3px);
+        border-color: var(--tri-card-border-hi);
+        box-shadow: 0 14px 36px -22px var(--tri-red-glow);
+    }
     .triarch-kpi .label {
-        font-size: 0.72rem; color: var(--tri-text-muted);
-        text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+        font-size: 0.7rem; color: var(--tri-text-muted);
+        text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
     }
-    .triarch-kpi .value { font-size: 1.45rem; font-weight: 700; margin-top: 6px; }
-    .triarch-kpi .sub   { font-size: 0.78rem; color: var(--tri-text-muted); margin-top: 2px; }
+    .triarch-kpi .value {
+        font-size: 1.55rem; font-weight: 800; margin-top: 6px; color: var(--tri-text);
+    }
+    .triarch-kpi .sub   { font-size: 0.78rem; color: var(--tri-text-muted); margin-top: 4px; }
 
-    /* ─── Header gradient ─── */
+    /* ─── Header ─── */
     .triarch-header {
-        padding: 20px 26px;
-        border-radius: 16px;
-        background: linear-gradient(135deg,
-            rgba(94, 234, 212, 0.10), rgba(167, 139, 250, 0.06));
-        border: 1px solid rgba(94, 234, 212, 0.18);
-        margin-bottom: 20px;
+        padding: 24px 30px;
+        border-radius: 18px;
+        background:
+            radial-gradient(700px 220px at 0% 0%, rgba(239, 68, 68, 0.20), transparent 70%),
+            linear-gradient(135deg, rgba(20, 20, 26, 0.92), rgba(15, 7, 9, 0.92));
+        border: 1px solid rgba(239, 68, 68, 0.30);
+        margin-bottom: 22px;
+        box-shadow: 0 12px 40px -22px var(--tri-red-glow);
     }
-    .triarch-header .title { margin: 0; font-size: 1.7rem; font-weight: 800; letter-spacing: 0.02em; }
+    .triarch-header .title { margin: 0; font-size: 1.85rem; font-weight: 900; letter-spacing: 0.04em; }
     .triarch-header .title .accent {
-        background: linear-gradient(135deg, var(--tri-accent), var(--tri-accent-2));
+        background: var(--tri-grad);
         -webkit-background-clip: text; background-clip: text; color: transparent;
     }
-    .triarch-header .subtitle { color: var(--tri-text-muted); margin-top: 6px; font-size: 0.92rem; }
+    .triarch-header .subtitle { color: var(--tri-text-muted); margin-top: 8px; font-size: 0.92rem; }
 
-    /* ─── Splash / Intro ─── */
+    /* ─── Splash ─── */
     .triarch-splash {
-        max-width: 760px;
-        margin: 60px auto 30px auto;
-        padding: 44px 44px 36px 44px;
-        border-radius: 24px;
-        background: linear-gradient(135deg,
-            rgba(94, 234, 212, 0.07), rgba(167, 139, 250, 0.05));
-        border: 1px solid rgba(94, 234, 212, 0.20);
+        max-width: 820px;
+        margin: 50px auto 30px auto;
+        padding: 56px 48px 40px 48px;
+        border-radius: 26px;
+        background:
+            radial-gradient(700px 300px at 50% -10%, rgba(239, 68, 68, 0.22), transparent 70%),
+            linear-gradient(180deg, rgba(20, 20, 26, 0.85), rgba(8, 4, 6, 0.92));
+        border: 1px solid rgba(239, 68, 68, 0.30);
         text-align: center;
-        backdrop-filter: blur(6px);
+        box-shadow: 0 30px 80px -30px var(--tri-red-glow);
+        backdrop-filter: blur(8px);
     }
     .triarch-splash .brand {
-        font-size: 3.2rem; font-weight: 900; letter-spacing: 0.05em;
-        background: linear-gradient(135deg, var(--tri-accent), var(--tri-accent-2));
+        font-size: 3.6rem; font-weight: 900; letter-spacing: 0.1em;
+        background: var(--tri-grad);
         -webkit-background-clip: text; background-clip: text; color: transparent;
         margin: 0;
+        text-shadow: 0 0 60px rgba(239, 68, 68, 0.30);
     }
     .triarch-splash .tag {
-        color: var(--tri-text-muted); margin-top: 10px;
-        font-size: 1.05rem; line-height: 1.5;
+        color: var(--tri-text-muted); margin-top: 14px;
+        font-size: 1.05rem; line-height: 1.55;
     }
     .triarch-splash .points {
-        margin: 28px auto 0 auto; max-width: 540px; text-align: left;
-        display: grid; gap: 10px;
+        margin: 32px auto 0 auto; max-width: 600px; text-align: left;
+        display: grid; gap: 12px;
     }
     .triarch-splash .point {
-        display: flex; align-items: flex-start; gap: 12px;
-        padding: 12px 14px; border-radius: 12px;
-        background: rgba(38, 39, 48, 0.5);
+        display: flex; align-items: flex-start; gap: 14px;
+        padding: 14px 16px; border-radius: 14px;
+        background: rgba(20, 20, 26, 0.65);
         border: 1px solid var(--tri-card-border);
+        transition: border-color 220ms ease, transform 220ms ease;
     }
-    .triarch-splash .point .icon { font-size: 1.3rem; line-height: 1.3; }
-    .triarch-splash .point .text { color: #d1d5db; font-size: 0.92rem; line-height: 1.5; }
-    .triarch-splash .point .text b { color: var(--tri-accent); }
+    .triarch-splash .point:hover {
+        border-color: var(--tri-card-border-hi);
+        transform: translateX(4px);
+    }
+    .triarch-splash .point .icon { font-size: 1.4rem; line-height: 1.3; }
+    .triarch-splash .point .text { color: #d1d1d6; font-size: 0.94rem; line-height: 1.55; }
+    .triarch-splash .point .text b { color: var(--tri-red); }
 
     /* ─── Sidebar branding ─── */
     .triarch-side-brand {
-        font-size: 1.6rem; font-weight: 900; letter-spacing: 0.06em;
-        background: linear-gradient(135deg, var(--tri-accent), var(--tri-accent-2));
+        font-size: 1.8rem; font-weight: 900; letter-spacing: 0.12em;
+        background: var(--tri-grad);
         -webkit-background-clip: text; background-clip: text; color: transparent;
-        text-align: center; margin: 4px 0 2px 0;
+        text-align: center; margin: 6px 0 2px 0;
+        text-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
     }
-    .triarch-side-tag { text-align: center; color: var(--tri-text-muted);
-                        font-size: 0.78rem; letter-spacing: 0.04em;
-                        text-transform: uppercase; margin-bottom: 18px; }
+    .triarch-side-tag {
+        text-align: center; color: var(--tri-text-muted);
+        font-size: 0.74rem; letter-spacing: 0.18em;
+        text-transform: uppercase; margin-bottom: 22px;
+    }
     .triarch-side-block {
-        background: var(--tri-card-bg);
+        background: rgba(20, 20, 26, 0.7);
         border: 1px solid var(--tri-card-border);
         border-radius: 12px;
-        padding: 12px 14px;
+        padding: 13px 15px;
         margin-bottom: 10px;
+        transition: border-color 220ms ease;
     }
+    .triarch-side-block:hover { border-color: var(--tri-card-border-hi); }
     .triarch-side-block .label {
-        font-size: 0.7rem; color: var(--tri-text-muted);
-        text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+        font-size: 0.68rem; color: var(--tri-text-muted);
+        text-transform: uppercase; letter-spacing: 0.10em; font-weight: 700;
     }
-    .triarch-side-block .value { font-size: 0.95rem; margin-top: 4px; }
+    .triarch-side-block .value {
+        font-size: 0.95rem; margin-top: 4px; color: var(--tri-text); font-weight: 600;
+    }
 
-    /* ─── Mini-rows en cards ─── */
+    /* ─── Mini-rows ─── */
     .triarch-mini { font-size: 0.78rem; color: var(--tri-text-muted); margin-top: 4px; }
+    .triarch-mini code {
+        background: rgba(239, 68, 68, 0.08); color: #fca5a5;
+        padding: 1px 6px; border-radius: 4px;
+        border: 1px solid rgba(239, 68, 68, 0.16);
+    }
 
     /* ─── Empty states ─── */
     .triarch-empty {
-        text-align: center; padding: 30px 20px;
+        text-align: center; padding: 40px 20px;
         border: 1px dashed var(--tri-card-border);
-        border-radius: 14px; color: var(--tri-text-muted);
+        border-radius: 16px; color: var(--tri-text-muted);
+        background: rgba(20, 20, 26, 0.4);
     }
-    .triarch-empty .emoji { font-size: 2rem; opacity: 0.7; }
+    .triarch-empty .emoji { font-size: 2.2rem; opacity: 0.6; margin-bottom: 8px; }
+
+    /* ─── st.metric override ─── */
+    [data-testid="stMetric"] {
+        background: var(--tri-card-bg);
+        border: 1px solid var(--tri-card-border);
+        border-radius: 14px;
+        padding: 16px 18px;
+        transition: border-color 220ms ease, transform 220ms ease;
+    }
+    [data-testid="stMetric"]:hover {
+        border-color: var(--tri-card-border-hi);
+        transform: translateY(-2px);
+    }
+    [data-testid="stMetricLabel"] {
+        color: var(--tri-text-muted) !important;
+        text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700;
+        font-size: 0.72rem !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--tri-text) !important;
+        font-weight: 800 !important;
+    }
+
+    /* ─── Toggle ─── */
+    [data-testid="stToggle"] label p { color: var(--tri-text); font-weight: 600; }
+
+    /* ─── Scrollbar (webkit) ─── */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--tri-bg-1); }
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, var(--tri-red-deep), #4b0d0d);
+        border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--tri-red); }
 
     /* ─── Hide Streamlit chrome no esencial ─── */
     footer { visibility: hidden; }
     #MainMenu { visibility: hidden; }
+    [data-testid="stHeader"] { background: transparent; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -225,42 +409,42 @@ store = AuditStore()
 
 # ─── Helpers de presentación amigable ─────────────────────────
 STATUS_FRIENDLY: dict[str, tuple[str, str]] = {
-    "NEW":                 ("Emitida, esperando ejecución",      "blue"),
-    "APPROVED":            ("Aprobada por ti",                   "green"),
-    "REJECTED_HUMAN":      ("Rechazada por ti",                  "red"),
-    "REJECTED_RISK":       ("Rechazada por gestión de riesgo",   "red"),
+    "NEW": ("Emitida, esperando ejecución", "blue"),
+    "APPROVED": ("Aprobada por ti", "green"),
+    "REJECTED_HUMAN": ("Rechazada por ti", "red"),
+    "REJECTED_RISK": ("Rechazada por gestión de riesgo", "red"),
     "REJECTED_CONFLUENCE": ("Sin confluencia entre estrategias", "orange"),
-    "PLACED":              ("Orden enviada al broker",           "blue"),
-    "FAILED":              ("Falló al enviar al broker",         "red"),
-    "FILLED":              ("Posición abierta",                  "blue"),
-    "CLOSED_TP1":          ("Cerrada en take-profit",            "green"),
-    "CLOSED_TP2":          ("Cerrada en take-profit (TP2)",      "green"),
-    "CLOSED_SL":           ("Cerrada en stop-loss",              "red"),
-    "CLOSED_MANUAL":       ("Cerrada manualmente",               "gray"),
+    "PLACED": ("Orden enviada al broker", "blue"),
+    "FAILED": ("Falló al enviar al broker", "red"),
+    "FILLED": ("Posición abierta", "blue"),
+    "CLOSED_TP1": ("Cerrada en take-profit", "green"),
+    "CLOSED_TP2": ("Cerrada en take-profit (TP2)", "green"),
+    "CLOSED_SL": ("Cerrada en stop-loss", "red"),
+    "CLOSED_MANUAL": ("Cerrada manualmente", "gray"),
 }
 
 REJECT_REASON_FRIENDLY: dict[str, str] = {
-    "no_signals":              "Ninguna estrategia detectó setup",
-    "direction_tie":           "Empate en dirección entre estrategias",
-    "min_signals":             "Solo una estrategia detectó setup (se piden al menos dos)",
-    "min_families":            "Setups de la misma familia (falta diversidad)",
-    "score":                   "Puntuación combinada insuficiente",
-    "kill_switch":             "Kill switch global activado",
-    "consec_losses":           "Demasiadas pérdidas consecutivas",
-    "daily_cap":               "Se alcanzó el tope diario de pérdida",
-    "max_trades":              "Se alcanzó el máximo de trades del día",
-    "out_of_window":           "Fuera del horario operativo del activo",
-    "news_block":              "Bloqueado por evento de noticias",
-    "active_trade":            "Ya hay un trade abierto en este activo",
-    "rr_too_low":              "Relación riesgo/beneficio por debajo del mínimo",
-    "slippage_guard":          "Slippage demasiado alto respecto al ATR",
-    "not_enough_bars":         "No hay suficientes velas para evaluar",
-    "atr_unavailable":         "Indicador ATR aún no disponible",
-    "ema_unavailable":         "Indicadores EMA aún no disponibles",
-    "atr_too_low":             "Mercado sin volatilidad suficiente",
-    "no_pullback":             "No hubo retroceso claro a la media",
-    "below_min_rr":            "RR proyectado por debajo del mínimo",
-    "trend_too_weak":          "Tendencia corta demasiado débil (rango)",
+    "no_signals": "Ninguna estrategia detectó setup",
+    "direction_tie": "Empate en dirección entre estrategias",
+    "min_signals": "Solo una estrategia detectó setup (se piden al menos dos)",
+    "min_families": "Setups de la misma familia (falta diversidad)",
+    "score": "Puntuación combinada insuficiente",
+    "kill_switch": "Kill switch global activado",
+    "consec_losses": "Demasiadas pérdidas consecutivas",
+    "daily_cap": "Se alcanzó el tope diario de pérdida",
+    "max_trades": "Se alcanzó el máximo de trades del día",
+    "out_of_window": "Fuera del horario operativo del activo",
+    "news_block": "Bloqueado por evento de noticias",
+    "active_trade": "Ya hay un trade abierto en este activo",
+    "rr_too_low": "Relación riesgo/beneficio por debajo del mínimo",
+    "slippage_guard": "Slippage demasiado alto respecto al ATR",
+    "not_enough_bars": "No hay suficientes velas para evaluar",
+    "atr_unavailable": "Indicador ATR aún no disponible",
+    "ema_unavailable": "Indicadores EMA aún no disponibles",
+    "atr_too_low": "Mercado sin volatilidad suficiente",
+    "no_pullback": "No hubo retroceso claro a la media",
+    "below_min_rr": "RR proyectado por debajo del mínimo",
+    "trend_too_weak": "Tendencia corta demasiado débil (rango)",
 }
 
 
@@ -320,10 +504,16 @@ def kpi(label: str, value: str, sub: str | None = None) -> str:
 @st.cache_resource(show_spinner=False)
 def _get_mt5_client() -> tuple[MT5Client | None, str]:
     if not MT5_AVAILABLE:
-        return None, "El paquete MetaTrader5 no está disponible (¿no estás en Windows?)."
+        return (
+            None,
+            "El paquete MetaTrader5 no está disponible (¿no estás en Windows?).",
+        )
     client = MT5Client()
     if not client.initialize():
-        return None, "No se pudo conectar al terminal MT5. Revisa que esté abierto y .env esté completo."
+        return (
+            None,
+            "No se pudo conectar al terminal MT5. Revisa que esté abierto y .env esté completo.",
+        )
     return client, "ok"
 
 
@@ -382,7 +572,7 @@ if not st.session_state["intro_done"]:
 with st.sidebar:
     st.markdown('<div class="triarch-side-brand">TRIARCH</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="triarch-side-tag">MT5 multi-asset bot</div>',
+        '<div class="triarch-side-tag">MT5 multi-asset bot</div>',
         unsafe_allow_html=True,
     )
 
@@ -392,7 +582,7 @@ with st.sidebar:
         f'<div class="triarch-side-block">'
         f'<div class="label">Entorno</div>'
         f'<div class="value">{dot(env_color)} {settings.triarch_env.value.upper()}</div>'
-        f'</div>',
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -404,7 +594,7 @@ with st.sidebar:
             f'<div class="triarch-side-block">'
             f'<div class="label">Cuenta MT5</div>'
             f'<div class="value">{dot("red")} Desconectada</div>'
-            f'</div>',
+            f"</div>",
             unsafe_allow_html=True,
         )
     else:
@@ -416,11 +606,11 @@ with st.sidebar:
             f'<div class="value">{dot("green")} #{info.login}</div>'
             f'<div class="triarch-mini">{info.server}</div>'
             f'<div class="triarch-mini" style="margin-top:8px">'
-            f'Equity: <b>{info.equity:,.2f} {info.currency}</b></div>'
+            f"Equity: <b>{info.equity:,.2f} {info.currency}</b></div>"
             f'<div class="triarch-mini">'
-            f'P/L flotante: <span class="pill-{eq_color}" '
-            f'style="padding:1px 6px;border-radius:6px">{eq_delta:+,.2f}</span></div>'
-            f'</div>',
+            f'P/L flotante: <span class="triarch-pill pill-{eq_color}" '
+            f'style="padding:1px 6px;font-size:0.72rem">{eq_delta:+,.2f}</span></div>'
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -433,27 +623,27 @@ with st.sidebar:
         f'<div class="label">Kill switch global</div>'
         f'<div class="value">{dot(ks_color)} {ks_text}</div>'
         f'<div class="triarch-mini">Setear TRIARCH_KILL=1 en .env para activar</div>'
-        f'</div>',
+        f"</div>",
         unsafe_allow_html=True,
     )
 
     # Atajos
     st.markdown(
-        f'<div class="triarch-side-block">'
-        f'<div class="label">Atajos</div>'
-        f'<div class="triarch-mini" style="margin-top:6px">'
-        f'<code>python -m scripts.diagnose_mt5</code></div>'
-        f'<div class="triarch-mini">'
-        f'<code>python -m scripts.fetch_history</code></div>'
-        f'<div class="triarch-mini">'
-        f'<code>python -m scripts.backtest</code></div>'
-        f'</div>',
+        '<div class="triarch-side-block">'
+        '<div class="label">Atajos</div>'
+        '<div class="triarch-mini" style="margin-top:6px">'
+        "<code>python -m scripts.diagnose_mt5</code></div>"
+        '<div class="triarch-mini">'
+        "<code>python -m scripts.fetch_history</code></div>"
+        '<div class="triarch-mini">'
+        "<code>python -m scripts.backtest</code></div>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        '<div class="triarch-mini" style="text-align:center;margin-top:18px">'
-        'v0.3 · UI v3</div>',
+        '<div class="triarch-mini" style="text-align:center;margin-top:18px;letter-spacing:0.08em">'
+        "v0.4 · UI v4 · Crimson Black</div>",
         unsafe_allow_html=True,
     )
 
@@ -479,7 +669,13 @@ st.markdown(
 
 
 tab_home, tab_live, tab_dec, tab_bt, tab_data = st.tabs(
-    ["🏠  Inicio", "🎯  Vivo & Control", "🧠  Decisiones", "📊  Backtesting", "📦  Datos"]
+    [
+        "🏠  Inicio",
+        "🎯  Vivo & Control",
+        "🧠  Decisiones",
+        "📊  Backtesting",
+        "📦  Datos",
+    ]
 )
 
 
@@ -494,8 +690,11 @@ with tab_home:
     if info is not None:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Balance", f"{info.balance:,.2f} {info.currency}")
-        c2.metric("Equity", f"{info.equity:,.2f} {info.currency}",
-                  delta=f"{info.equity - info.balance:+,.2f}")
+        c2.metric(
+            "Equity",
+            f"{info.equity:,.2f} {info.currency}",
+            delta=f"{info.equity - info.balance:+,.2f}",
+        )
         c3.metric("Margen libre", f"{info.free_margin:,.2f} {info.currency}")
         c4.metric("Apalancamiento", f"1:{info.leverage}")
     else:
@@ -509,16 +708,19 @@ with tab_home:
     if rows_24h:
         df24 = pd.DataFrame(rows_24h)
         n_total = len(df24)
-        n_taken = ((df24["status"].isin(["PLACED", "FILLED", "APPROVED"])).sum())
-        n_rejected = (df24["status"].str.startswith("REJECTED")).sum() + (df24["status"] == "FAILED").sum()
+        n_taken = (df24["status"].isin(["PLACED", "FILLED", "APPROVED"])).sum()
+        n_rejected = (df24["status"].str.startswith("REJECTED")).sum() + (
+            df24["status"] == "FAILED"
+        ).sum()
         n_closed = (df24["status"].str.startswith("CLOSED")).sum()
-        pnl_24h = df24["pnl_money"].fillna(0).sum() if "pnl_money" in df24.columns else 0.0
+        pnl_24h = (
+            df24["pnl_money"].fillna(0).sum() if "pnl_money" in df24.columns else 0.0
+        )
     else:
         n_total = n_taken = n_rejected = n_closed = 0
         pnl_24h = 0.0
 
     st.markdown("**Actividad últimas 24 horas**")
-    pnl_color = "green" if pnl_24h >= 0 else "red"
     grid = (
         '<div class="triarch-kpi-grid">'
         + kpi("Señales totales", str(n_total))
@@ -526,7 +728,7 @@ with tab_home:
         + kpi("Rechazadas", str(n_rejected), "por risk / confluencia / etc.")
         + kpi("Cerradas", str(n_closed), "TP o SL alcanzado")
         + kpi("P/L (USD)", f"{pnl_24h:+,.2f}", "trades cerrados 24h")
-        + '</div>'
+        + "</div>"
     )
     st.markdown(grid, unsafe_allow_html=True)
 
@@ -548,15 +750,15 @@ with tab_home:
                     f'<div class="triarch-mini" style="margin-top:8px">'
                     f'Última: {friendly_date(r.get("timestamp_utc"))}<br>'
                     f'{r.get("strategy")} {r.get("direction")} @ <code>{r.get("entry")}</code>'
-                    f'</div>'
+                    f"</div>"
                 )
             st.markdown(
                 f'<div class="triarch-card">'
-                f'<h4>{dot(ind_color)} {name}</h4>'
+                f"<h4>{dot(ind_color)} {name}</h4>"
                 f'<div class="triarch-mini">{cfg.broker_symbol} · {cfg.timeframe} · {cfg.profile}</div>'
-                f'<div style="margin-top:8px">{pill(mode_lbl, "accent" if live_take else "gray")}</div>'
-                f'{last_line}'
-                f'</div>',
+                f'<div style="margin-top:10px">{pill(mode_lbl, "accent" if live_take else "gray")}</div>'
+                f"{last_line}"
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
@@ -573,11 +775,14 @@ with tab_live:
         st.warning(f"⚠  {msg}")
     else:
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Balance",        f"{info.balance:,.2f} {info.currency}")
-        c2.metric("Equity",         f"{info.equity:,.2f} {info.currency}",
-                  delta=f"{info.equity - info.balance:+,.2f}")
-        c3.metric("Margen usado",   f"{info.margin:,.2f} {info.currency}")
-        c4.metric("Margen libre",   f"{info.free_margin:,.2f} {info.currency}")
+        c1.metric("Balance", f"{info.balance:,.2f} {info.currency}")
+        c2.metric(
+            "Equity",
+            f"{info.equity:,.2f} {info.currency}",
+            delta=f"{info.equity - info.balance:+,.2f}",
+        )
+        c3.metric("Margen usado", f"{info.margin:,.2f} {info.currency}")
+        c4.metric("Margen libre", f"{info.free_margin:,.2f} {info.currency}")
         c5.metric("Apalancamiento", f"1:{info.leverage}")
         st.caption(
             f"Cuenta **{info.login}** · servidor **{info.server}** · titular **{info.name}**"
@@ -677,15 +882,32 @@ with tab_dec:
 
     f1, f2, f3, f4 = st.columns([2, 2, 2, 2])
     with f1:
-        sym_filter = st.selectbox("Activo", ["(todos)"] + list(symbols.keys()), key="dec_sym")
+        sym_filter = st.selectbox(
+            "Activo", ["(todos)"] + list(symbols.keys()), key="dec_sym"
+        )
     with f2:
         all_strats = sorted({s for cfg in symbols.values() for s in cfg.strategies})
-        strat_filter = st.selectbox("Estrategia", ["(todas)"] + all_strats, key="dec_strat")
+        strat_filter = st.selectbox(
+            "Estrategia", ["(todas)"] + all_strats, key="dec_strat"
+        )
     with f3:
-        status_buckets = ["(todos)", "✅ Tomadas", "❌ Rechazadas", "🏁 Cerradas", "🆕 Pendientes"]
+        status_buckets = [
+            "(todos)",
+            "✅ Tomadas",
+            "❌ Rechazadas",
+            "🏁 Cerradas",
+            "🆕 Pendientes",
+        ]
         status_filter = st.selectbox("Estado", status_buckets, key="dec_status")
     with f4:
-        days = st.number_input("Últimos N días", min_value=1, max_value=365, value=30, step=1, key="dec_days")
+        days = st.number_input(
+            "Últimos N días",
+            min_value=1,
+            max_value=365,
+            value=30,
+            step=1,
+            key="dec_days",
+        )
 
     direction_filter = st.radio(
         "Dirección", ["(todas)", "LONG", "SHORT"], horizontal=True, key="dec_dir"
@@ -704,25 +926,38 @@ with tab_dec:
         rows = [r for r in rows if r.get("direction") == direction_filter]
     if status_filter != "(todos)":
         if status_filter.startswith("✅"):
-            rows = [r for r in rows if r.get("status") in {"PLACED", "FILLED", "APPROVED"}]
+            rows = [
+                r for r in rows if r.get("status") in {"PLACED", "FILLED", "APPROVED"}
+            ]
         elif status_filter.startswith("❌"):
-            rows = [r for r in rows if (r.get("status") or "").startswith("REJECTED") or r.get("status") == "FAILED"]
+            rows = [
+                r
+                for r in rows
+                if (r.get("status") or "").startswith("REJECTED")
+                or r.get("status") == "FAILED"
+            ]
         elif status_filter.startswith("🏁"):
             rows = [r for r in rows if (r.get("status") or "").startswith("CLOSED")]
         elif status_filter.startswith("🆕"):
             rows = [r for r in rows if r.get("status") == "NEW"]
 
     # KPIs rápidos arriba de la tabla
-    n_taken = sum(1 for r in rows if r.get("status") in {"PLACED", "FILLED", "APPROVED"})
-    n_rej   = sum(1 for r in rows if (r.get("status") or "").startswith("REJECTED") or r.get("status") == "FAILED")
-    n_clo   = sum(1 for r in rows if (r.get("status") or "").startswith("CLOSED"))
+    n_taken = sum(
+        1 for r in rows if r.get("status") in {"PLACED", "FILLED", "APPROVED"}
+    )
+    n_rej = sum(
+        1
+        for r in rows
+        if (r.get("status") or "").startswith("REJECTED") or r.get("status") == "FAILED"
+    )
+    n_clo = sum(1 for r in rows if (r.get("status") or "").startswith("CLOSED"))
     grid = (
         '<div class="triarch-kpi-grid">'
         + kpi("Encontradas", str(len(rows)))
-        + kpi("Tomadas",    str(n_taken))
+        + kpi("Tomadas", str(n_taken))
         + kpi("Rechazadas", str(n_rej))
-        + kpi("Cerradas",   str(n_clo))
-        + '</div>'
+        + kpi("Cerradas", str(n_clo))
+        + "</div>"
     )
     st.markdown(grid, unsafe_allow_html=True)
 
@@ -730,20 +965,22 @@ with tab_dec:
         view_rows = []
         for r in rows:
             st_text, _ = friendly_status(r.get("status"))
-            view_rows.append({
-                "Fecha": friendly_date(r.get("timestamp_utc")),
-                "Activo": r.get("symbol"),
-                "Estrategia": r.get("strategy"),
-                "Dirección": r.get("direction"),
-                "Entry": r.get("entry"),
-                "SL": r.get("stop_loss"),
-                "TP1": r.get("take_profit_1"),
-                "RR": round(r.get("rr_ratio") or 0, 2),
-                "Score": round(r.get("score") or 0, 2),
-                "Estado": st_text,
-                "Motivo": friendly_reject_reason(r.get("reject_reason")),
-                "PnL (USD)": r.get("pnl_money"),
-            })
+            view_rows.append(
+                {
+                    "Fecha": friendly_date(r.get("timestamp_utc")),
+                    "Activo": r.get("symbol"),
+                    "Estrategia": r.get("strategy"),
+                    "Dirección": r.get("direction"),
+                    "Entry": r.get("entry"),
+                    "SL": r.get("stop_loss"),
+                    "TP1": r.get("take_profit_1"),
+                    "RR": round(r.get("rr_ratio") or 0, 2),
+                    "Score": round(r.get("score") or 0, 2),
+                    "Estado": st_text,
+                    "Motivo": friendly_reject_reason(r.get("reject_reason")),
+                    "PnL (USD)": r.get("pnl_money"),
+                }
+            )
         df_view = pd.DataFrame(view_rows)
         st.dataframe(df_view, use_container_width=True, hide_index=True)
 
@@ -753,8 +990,7 @@ with tab_dec:
             f"Generado: {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n"
             f"Filtros:  activo={sym_filter}  estrategia={strat_filter}  "
             f"estado={status_filter}  dirección={direction_filter}  últimos_días={days}\n"
-            f"Total decisiones: {len(rows)}\n"
-            + "=" * 72 + "\n\n"
+            f"Total decisiones: {len(rows)}\n" + "=" * 72 + "\n\n"
         )
         body = "".join(_row_to_human_block(r) for r in rows)
         fname = (
@@ -772,9 +1008,9 @@ with tab_dec:
         st.markdown(
             '<div class="triarch-empty">'
             '<div class="emoji">🔍</div>'
-            '<div>Sin decisiones para esos filtros.</div>'
+            "<div>Sin decisiones para esos filtros.</div>"
             '<div class="triarch-mini">Probá ampliar el rango de días o aflojar los filtros.</div>'
-            '</div>',
+            "</div>",
             unsafe_allow_html=True,
         )
 
@@ -816,7 +1052,9 @@ with tab_bt:
     if run_bt:
         from scripts.backtest import backtest_symbol
 
-        from_dt = datetime.combine(from_d, datetime.min.time()).replace(tzinfo=timezone.utc)
+        from_dt = datetime.combine(from_d, datetime.min.time()).replace(
+            tzinfo=timezone.utc
+        )
         to_dt = datetime.combine(to_d, datetime.max.time()).replace(tzinfo=timezone.utc)
 
         results = []
@@ -835,37 +1073,45 @@ with tab_bt:
         summary_rows = []
         for r in results:
             if "error" in r or r.get("trades", 0) == 0:
-                summary_rows.append({
-                    "Activo": r.get("symbol"),
-                    "Trades": 0,
-                    "Win rate": "—",
-                    "Profit factor": "—",
-                    "Expectancy (R)": "—",
-                    "Sharpe": "—",
-                    "Sortino": "—",
-                    "SQN": "—",
-                    "Max DD (R)": "—",
-                    "Trades/sem": "—",
-                    "Nota": r.get("error") or r.get("note") or "",
-                })
+                summary_rows.append(
+                    {
+                        "Activo": r.get("symbol"),
+                        "Trades": 0,
+                        "Win rate": "—",
+                        "Profit factor": "—",
+                        "Expectancy (R)": "—",
+                        "Sharpe": "—",
+                        "Sortino": "—",
+                        "SQN": "—",
+                        "Max DD (R)": "—",
+                        "Trades/sem": "—",
+                        "Nota": r.get("error") or r.get("note") or "",
+                    }
+                )
                 continue
             pf = r["profit_factor"]
-            summary_rows.append({
-                "Activo": r["symbol"],
-                "Trades": r["trades"],
-                "Win rate": f"{r['win_rate']:.1%}",
-                "Profit factor": (
-                    "∞" if isinstance(pf, float) and pf == float("inf") else f"{pf:.2f}"
-                ),
-                "Expectancy (R)": f"{r['expectancy_r']:+.3f}",
-                "Sharpe": f"{r['sharpe_ratio']:.2f}",
-                "Sortino": f"{r['sortino_ratio']:.2f}",
-                "SQN": f"{r['sqn']:.2f}",
-                "Max DD (R)": f"{r['max_drawdown_r']:.2f}",
-                "Trades/sem": f"{r['trades_per_week_avg']}",
-                "Nota": "",
-            })
-        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+            summary_rows.append(
+                {
+                    "Activo": r["symbol"],
+                    "Trades": r["trades"],
+                    "Win rate": f"{r['win_rate']:.1%}",
+                    "Profit factor": (
+                        "∞"
+                        if isinstance(pf, float) and pf == float("inf")
+                        else f"{pf:.2f}"
+                    ),
+                    "Expectancy (R)": f"{r['expectancy_r']:+.3f}",
+                    "Sharpe": f"{r['sharpe_ratio']:.2f}",
+                    "Sortino": f"{r['sortino_ratio']:.2f}",
+                    "SQN": f"{r['sqn']:.2f}",
+                    "Max DD (R)": f"{r['max_drawdown_r']:.2f}",
+                    "Trades/sem": f"{r['trades_per_week_avg']}",
+                    "Nota": "",
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(summary_rows), use_container_width=True, hide_index=True
+        )
 
         for r in results:
             if "error" in r:
@@ -889,7 +1135,11 @@ with tab_bt:
                 pf = r["profit_factor"]
                 kpis_html += kpi(
                     "Profit factor",
-                    "∞" if isinstance(pf, float) and pf == float("inf") else f"{pf:.2f}",
+                    (
+                        "∞"
+                        if isinstance(pf, float) and pf == float("inf")
+                        else f"{pf:.2f}"
+                    ),
                 )
                 kpis_html += kpi("Expectancy", f"{r['expectancy_r']:+.3f} R")
                 kpis_html += kpi("Sharpe", f"{r['sharpe_ratio']:.2f}")
@@ -910,17 +1160,26 @@ with tab_bt:
                 if eq:
                     df_eq = pd.DataFrame(eq)
                     df_eq["time"] = pd.to_datetime(df_eq["time"])
-                    st.line_chart(df_eq.set_index("time")["cum_r"],
-                                  height=240, use_container_width=True)
+                    st.line_chart(
+                        df_eq.set_index("time")["cum_r"],
+                        height=240,
+                        use_container_width=True,
+                    )
                     st.caption("Curva de equity en múltiplos de R (riesgo por trade).")
 
                 by_s = r.get("by_strategy") or {}
                 if by_s:
-                    df_s = pd.DataFrame(by_s).T.reset_index().rename(
-                        columns={"index": "Estrategia",
-                                 "trades": "Trades",
-                                 "expectancy_r": "Expectancy (R)",
-                                 "total_r": "Total (R)"}
+                    df_s = (
+                        pd.DataFrame(by_s)
+                        .T.reset_index()
+                        .rename(
+                            columns={
+                                "index": "Estrategia",
+                                "trades": "Trades",
+                                "expectancy_r": "Expectancy (R)",
+                                "total_r": "Total (R)",
+                            }
+                        )
                     )
                     st.markdown("**Por estrategia**")
                     st.dataframe(df_s, use_container_width=True, hide_index=True)
@@ -929,24 +1188,42 @@ with tab_bt:
                 if tlog:
                     df_log = pd.DataFrame(tlog)
                     df_log["Fecha"] = df_log["time"].apply(friendly_date)
-                    df_log = df_log.rename(columns={
-                        "strategy": "Estrategia",
-                        "direction": "Dirección",
-                        "entry": "Entry",
-                        "sl": "SL",
-                        "tp1": "TP1",
-                        "rr_planned": "RR plan",
-                        "score": "Score",
-                        "outcome": "Resultado",
-                        "bars_held": "Velas",
-                        "pnl_r": "PnL (R)",
-                    })[["Fecha", "Estrategia", "Dirección", "Entry", "SL", "TP1",
-                        "RR plan", "Score", "Resultado", "Velas", "PnL (R)"]]
+                    df_log = df_log.rename(
+                        columns={
+                            "strategy": "Estrategia",
+                            "direction": "Dirección",
+                            "entry": "Entry",
+                            "sl": "SL",
+                            "tp1": "TP1",
+                            "rr_planned": "RR plan",
+                            "score": "Score",
+                            "outcome": "Resultado",
+                            "bars_held": "Velas",
+                            "pnl_r": "PnL (R)",
+                        }
+                    )[
+                        [
+                            "Fecha",
+                            "Estrategia",
+                            "Dirección",
+                            "Entry",
+                            "SL",
+                            "TP1",
+                            "RR plan",
+                            "Score",
+                            "Resultado",
+                            "Velas",
+                            "PnL (R)",
+                        ]
+                    ]
                     st.markdown("**Trade log**")
                     st.dataframe(df_log, use_container_width=True, hide_index=True)
 
         from scripts.backtest import _format_summary
-        from_dt = datetime.combine(from_d, datetime.min.time()).replace(tzinfo=timezone.utc)
+
+        from_dt = datetime.combine(from_d, datetime.min.time()).replace(
+            tzinfo=timezone.utc
+        )
         to_dt = datetime.combine(to_d, datetime.max.time()).replace(tzinfo=timezone.utc)
         txt = _format_summary(results, from_dt, to_dt)
         st.download_button(
@@ -959,9 +1236,9 @@ with tab_bt:
         st.markdown(
             '<div class="triarch-empty">'
             '<div class="emoji">📊</div>'
-            '<div>Aún no has corrido un backtest.</div>'
+            "<div>Aún no has corrido un backtest.</div>"
             '<div class="triarch-mini">Configurá los filtros arriba y presioná «Correr backtest».</div>'
-            '</div>',
+            "</div>",
             unsafe_allow_html=True,
         )
 
@@ -977,8 +1254,12 @@ with tab_data:
     # ─── Signals raw ───
     with sub_signals:
         st.subheader("Tabla cruda de señales")
-        st.caption("Vista sin traducciones — útil para debugging o exportar a otra herramienta.")
-        sym_filter_raw = st.selectbox("Activo", ["(todos)"] + list(symbols.keys()), key="sig_sym")
+        st.caption(
+            "Vista sin traducciones — útil para debugging o exportar a otra herramienta."
+        )
+        sym_filter_raw = st.selectbox(
+            "Activo", ["(todos)"] + list(symbols.keys()), key="sig_sym"
+        )
         rows = store.list_signals(
             symbol=None if sym_filter_raw == "(todos)" else sym_filter_raw,
             limit=500,
@@ -986,17 +1267,29 @@ with tab_data:
         if rows:
             df = pd.DataFrame(rows)
             st.dataframe(
-                df[[
-                    "timestamp_utc", "symbol", "strategy", "direction",
-                    "entry", "stop_loss", "take_profit_1", "rr_ratio",
-                    "score", "confidence", "status", "reject_reason", "pnl_money",
-                ]],
+                df[
+                    [
+                        "timestamp_utc",
+                        "symbol",
+                        "strategy",
+                        "direction",
+                        "entry",
+                        "stop_loss",
+                        "take_profit_1",
+                        "rr_ratio",
+                        "score",
+                        "confidence",
+                        "status",
+                        "reject_reason",
+                        "pnl_money",
+                    ]
+                ],
                 use_container_width=True,
             )
         else:
             st.markdown(
                 '<div class="triarch-empty"><div class="emoji">📭</div>'
-                '<div>Aún no hay señales en la base.</div></div>',
+                "<div>Aún no hay señales en la base.</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -1006,7 +1299,9 @@ with tab_data:
         st.caption(
             "Toda evaluación por vela queda registrada aquí, incluyendo las que no produjeron señal."
         )
-        sym_filter_ev = st.selectbox("Activo", ["(todos)"] + list(symbols.keys()), key="evals_sym")
+        sym_filter_ev = st.selectbox(
+            "Activo", ["(todos)"] + list(symbols.keys()), key="evals_sym"
+        )
         rows = store.list_evals(
             symbol=None if sym_filter_ev == "(todos)" else sym_filter_ev,
             limit=500,
@@ -1017,7 +1312,7 @@ with tab_data:
         else:
             st.markdown(
                 '<div class="triarch-empty"><div class="emoji">📭</div>'
-                '<div>Aún no hay evaluaciones registradas.</div></div>',
+                "<div>Aún no hay evaluaciones registradas.</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -1029,16 +1324,20 @@ with tab_data:
         if not rows:
             st.markdown(
                 '<div class="triarch-empty"><div class="emoji">📭</div>'
-                '<div>Sin datos para los últimos 30 días.</div></div>',
+                "<div>Sin datos para los últimos 30 días.</div></div>",
                 unsafe_allow_html=True,
             )
         else:
             df = pd.DataFrame(rows)
-            agg = df.groupby("symbol").agg(
-                señales=("signal_id", "count"),
-                avg_score=("score", "mean"),
-                avg_rr=("rr_ratio", "mean"),
-            ).round(3)
+            agg = (
+                df.groupby("symbol")
+                .agg(
+                    señales=("signal_id", "count"),
+                    avg_score=("score", "mean"),
+                    avg_rr=("rr_ratio", "mean"),
+                )
+                .round(3)
+            )
             st.markdown("**Por activo**")
             st.dataframe(agg, use_container_width=True)
 

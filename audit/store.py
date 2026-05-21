@@ -6,6 +6,7 @@ Tablas:
   - evals    (cada evaluación de cada estrategia × cada vela; incluye rechazos)
   - sessions (resumen diario por activo)
 """
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,6 @@ from typing import Iterator
 from loguru import logger
 
 from signals.schema import Eval, Signal
-
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -141,11 +141,21 @@ class AuditStore:
                     "atr_at_signal": signal.atr_at_signal,
                     "status": signal.status.value,
                     "reject_reason": signal.reject_reason,
-                    "features": json.dumps(signal.features) if signal.features else None,
+                    "features": (
+                        json.dumps(signal.features) if signal.features else None
+                    ),
                     "mt5_ticket": signal.mt5_ticket,
-                    "placed_at_utc": signal.placed_at_utc.isoformat() if signal.placed_at_utc else None,
+                    "placed_at_utc": (
+                        signal.placed_at_utc.isoformat()
+                        if signal.placed_at_utc
+                        else None
+                    ),
                     "filled_price": signal.filled_price,
-                    "closed_at_utc": signal.closed_at_utc.isoformat() if signal.closed_at_utc else None,
+                    "closed_at_utc": (
+                        signal.closed_at_utc.isoformat()
+                        if signal.closed_at_utc
+                        else None
+                    ),
                     "closed_price": signal.closed_price,
                     "pnl_money": signal.pnl_money,
                     "pnl_pts": signal.pnl_pts,
