@@ -203,12 +203,12 @@
 
         <!-- ═══ Tab 4 — Backtesting ═══ -->
         <section class="tab-panel" data-panel="backtest">
-            <h2 class="section-title">Backtesting sobre histórico cacheado</h2>
+            <h2 class="section-title">Backtesting interactivo (corre en tu navegador)</h2>
             <p class="section-caption">
-                Esta es una <b>vista de resultados</b>: la corrida real ocurre en local
-                con <code>python -m scripts.backtest</code> y se exporta a JSON vía
-                <code>python -m scripts.export_web</code>. La web muestra el último snapshot
-                y permite recortar el rango temporal sin volver a correr el backtest.
+                El motor de backtest está portado a JavaScript y corre directamente en el browser.
+                Carga los OHLC históricos pre-calculados (<code>data/ohlc/&lt;symbol&gt;.json</code>),
+                aplica las estrategias del activo en el rango temporal elegido, y reporta WR, PF,
+                Sharpe, Sortino, SQN, equity curve y trade log — sin tocar el servidor.
             </p>
 
             <div class="filter-bar">
@@ -228,7 +228,7 @@
                 </div>
                 <div class="filter">
                     <label>&nbsp;</label>
-                    <button class="btn" id="bt-reset">↺ Reset rango</button>
+                    <button class="btn btn-primary" id="bt-run">▶ Correr backtest</button>
                 </div>
             </div>
 
@@ -239,7 +239,10 @@
                 <button class="btn" data-bt-preset="ytd">YTD</button>
                 <button class="btn" data-bt-preset="1y">1Y</button>
                 <button class="btn" data-bt-preset="all">Todo</button>
+                <button class="btn" id="bt-reset">↺ Reset rango</button>
             </div>
+
+            <div id="bt-status" class="side-mini" style="margin-bottom:12px"></div>
 
             <div id="bt-results"></div>
         </section>
@@ -283,6 +286,7 @@
     </main>
 </div>
 
+<script src="./assets/js/bt-engine.js"></script>
 <script src="./assets/js/app.js"></script>
 </body>
 </html>

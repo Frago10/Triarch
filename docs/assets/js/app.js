@@ -547,80 +547,150 @@ function recomputeMetricsFromLog(original, fromTs, toTs) {
     };
 }
 
-let BT_BASE_RESULTS = [];  /* snapshot original sin filtrar */
+/* ═══════════════ Backtest interactivo (corre en el browser) ═══════════════ */
+const OHLC_CACHE = {};     // {symbol: payload}
+let MANIFEST = null;       // {generated_at, symbols: [...]}
+
+async function loadManifest() {
+    if (MANIFEST !== null) return MANIFEST;
+    for (const url of ['./data/ohlc/manifest.json']) {
+        try {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (res.ok) { MANIFEST = await res.json(); return MANIFEST; }
+        } catch (e) { /* fall through */ }
+    }
+    MANIFEST = { symbols: [] };
+    return MANIFEST;
+}
+
+async function loadOhlc(symbol) {
+    if (OHLC_CACHE[symbol]) return OHLC_CACHE[symbol];
+    const url = `./data/ohlc/${symbol}.json`;
+    const res = await fetch(url, { cache: 'force-cache' });
+    if (!res.ok) throw new Error(`No se pudo cargar ${url} (HTTP ${res.status})`);
+    const payload = await res.json();
+    OHLC_CACHE[symbol] = payload;
+    return payload;
+}
 
 function renderBacktest(data) {
-    BT_BASE_RESULTS = data.backtest_results || [];
-    const container = $('#bt-results');
-    if (!BT_BASE_RESULTS.length) {
-        container.innerHTML = `<div class="empty">
+    /* Llenar selector de activos desde el manifest si está; si no, desde state.json */
+    const sel = $('#bt-symbol-filter');
+    const symsFromState = Object.keys(data.symbols || {});
+
+    loadManifest().then(man => {
+        const available = man.symbols && man.symbols.length ? man.symbols : symsFromState;
+        sel.innerHTML = '<option value="">(todos)</option>' +
+            available.map(s => `<option>${s}</option>`).join('');
+        if (!man.symbols || !man.symbols.length) {
+            $('#bt-status').innerHTML =
+                '⚠ No se encontró <code>data/ohlc/manifest.json</code>. ' +
+                'Corre <code>python -m scripts.export_ohlc</code> en local y haz git push ' +
+                'para habilitar backtesting interactivo.';
+        } else {
+            $('#bt-status').innerHTML =
+                `<span style="color:#86efac">●</span> OHLC disponible para: ` +
+                `<b>${man.symbols.join(', ')}</b>. Generado: ${friendlyDate(man.generated_at)}`;
+        }
+    });
+
+    /* Listeners de los date / select / presets */
+    const today = new Date();
+    if (!$('#bt-from').value) $('#bt-from').value =
+        new Date(today.getTime() - 365 * 86400e3).toISOString().slice(0, 10);
+    if (!$('#bt-to').value) $('#bt-to').value = today.toISOString().slice(0, 10);
+
+    $('#bt-reset').onclick = () => {
+        $('#bt-from').value = new Date(today.getTime() - 365 * 86400e3).toISOString().slice(0, 10);
+        $('#bt-to').value = today.toISOString().slice(0, 10);
+        $('#bt-symbol-filter').value = '';
+    };
+
+    $$('#bt-preset-row [data-bt-preset]').forEach(btn => {
+        btn.onclick = () => {
+            const preset = btn.dataset.btPreset;
+            const now = new Date();
+            let from;
+            if (preset === '1m') from = new Date(now.getTime() - 30 * 86400e3);
+            else if (preset === '3m') from = new Date(now.getTime() - 90 * 86400e3);
+            else if (preset === '6m') from = new Date(now.getTime() - 180 * 86400e3);
+            else if (preset === 'ytd') from = new Date(now.getFullYear(), 0, 1);
+            else if (preset === '1y') from = new Date(now.getTime() - 365 * 86400e3);
+            else if (preset === 'all') from = new Date(2000, 0, 1);
+            if (from) $('#bt-from').value = from.toISOString().slice(0, 10);
+            $('#bt-to').value = now.toISOString().slice(0, 10);
+        };
+    });
+
+    /* Botón principal: corre el backtest */
+    $('#bt-run').onclick = () => runInteractiveBacktest(data);
+
+    /* Pinta resultados precargados desde state.json si hay alguno */
+    const preloaded = data.backtest_results || [];
+    if (preloaded.length) {
+        drawBacktestResults(preloaded);
+    } else {
+        $('#bt-results').innerHTML = `<div class="empty">
             <div class="emoji">📊</div>
-            <div>Aún no hay un backtest exportado.</div>
-            <div class="mini">Corre <code>python -m scripts.backtest</code> + <code>scripts.export_web</code> y vuelve a cargar.</div>
+            <div>Configura filtros y presiona <b>▶ Correr backtest</b>.</div>
+            <div class="mini">El motor corre en tu navegador sobre <code>data/ohlc/&lt;symbol&gt;.json</code>.</div>
         </div>`;
+    }
+}
+
+async function runInteractiveBacktest(data) {
+    const fromVal = $('#bt-from').value;
+    const toVal = $('#bt-to').value;
+    const symF = $('#bt-symbol-filter').value;
+    const fromTs = fromVal ? new Date(fromVal + 'T00:00:00Z').getTime() : null;
+    const toTs = toVal ? new Date(toVal + 'T23:59:59Z').getTime() : null;
+
+    const man = await loadManifest();
+    const candidates = symF ? [symF] : (man.symbols || Object.keys(data.symbols || {}));
+    if (!candidates.length) {
+        $('#bt-status').innerHTML = '⚠ No hay activos disponibles.';
         return;
     }
 
-    /* Determinar el rango temporal completo (de TODOS los trade_log unidos) */
-    const allTs = BT_BASE_RESULTS
-        .flatMap(r => r.trade_log || [])
-        .map(t => new Date(t.time).getTime())
-        .filter(n => !isNaN(n));
-    const minTs = allTs.length ? Math.min(...allTs) : null;
-    const maxTs = allTs.length ? Math.max(...allTs) : null;
+    const btn = $('#bt-run');
+    btn.disabled = true;
+    btn.textContent = '⏳ Cargando OHLC…';
 
-    /* Llenar el selector de activos */
-    const sel = $('#bt-symbol-filter');
-    sel.innerHTML = '<option value="">(todos)</option>' +
-        BT_BASE_RESULTS.map(r => `<option>${r.symbol}</option>`).join('');
-
-    /* Set defaults en los date inputs si están vacíos */
-    if (minTs && !$('#bt-from').value) $('#bt-from').value = new Date(minTs).toISOString().slice(0, 10);
-    if (maxTs && !$('#bt-to').value) $('#bt-to').value = new Date(maxTs).toISOString().slice(0, 10);
-
-    function applyBtFilters() {
-        const fromVal = $('#bt-from').value;
-        const toVal = $('#bt-to').value;
-        const symF = $('#bt-symbol-filter').value;
-        const fromTs = fromVal ? new Date(fromVal + 'T00:00:00Z').getTime() : null;
-        const toTs = toVal ? new Date(toVal + 'T23:59:59Z').getTime() : null;
-
-        let filtered = BT_BASE_RESULTS;
-        if (symF) filtered = filtered.filter(r => r.symbol === symF);
-        const isFullRange = (!fromTs || fromTs <= minTs) && (!toTs || toTs >= maxTs);
-        if (!isFullRange) {
-            filtered = filtered.map(r => r.error ? r : recomputeMetricsFromLog(r, fromTs, toTs));
+    const results = [];
+    for (const sym of candidates) {
+        try {
+            $('#bt-status').textContent = `Cargando ${sym}…`;
+            const ohlc = await loadOhlc(sym);
+            $('#bt-status').textContent = `Backtest ${sym} (${ohlc.rows.length} velas)…`;
+            // ceder al browser para que repinte el status
+            await new Promise(r => setTimeout(r, 10));
+            const t0 = performance.now();
+            const result = window.TriarchBT.runBacktest({
+                ohlc,
+                strategies: ohlc.strategies,
+                confluence: ohlc.confluence,
+                minRR: ohlc.min_rr,
+                maxTradesDay: ohlc.max_trades_per_day,
+                fromTs, toTs,
+            });
+            const ms = Math.round(performance.now() - t0);
+            result.symbol = sym;
+            result._elapsed_ms = ms;
+            results.push(result);
+        } catch (e) {
+            results.push({ symbol: sym, error: e.message || String(e) });
         }
-        drawBacktestResults(filtered);
     }
 
-    /* Listeners */
-    ['#bt-from', '#bt-to', '#bt-symbol-filter'].forEach(s =>
-        $(s).addEventListener('change', applyBtFilters));
-    $('#bt-reset').addEventListener('click', () => {
-        if (minTs) $('#bt-from').value = new Date(minTs).toISOString().slice(0, 10);
-        if (maxTs) $('#bt-to').value = new Date(maxTs).toISOString().slice(0, 10);
-        $('#bt-symbol-filter').value = '';
-        applyBtFilters();
-    });
-    $$('#bt-preset-row [data-bt-preset]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const preset = btn.dataset.btPreset;
-            const today = new Date();
-            let from;
-            if (preset === '1m') from = new Date(today.getTime() - 30 * 86400e3);
-            else if (preset === '3m') from = new Date(today.getTime() - 90 * 86400e3);
-            else if (preset === '6m') from = new Date(today.getTime() - 180 * 86400e3);
-            else if (preset === 'ytd') from = new Date(today.getFullYear(), 0, 1);
-            else if (preset === '1y') from = new Date(today.getTime() - 365 * 86400e3);
-            else if (preset === 'all' && minTs) from = new Date(minTs);
-            if (from) $('#bt-from').value = from.toISOString().slice(0, 10);
-            $('#bt-to').value = today.toISOString().slice(0, 10);
-            applyBtFilters();
-        });
-    });
+    btn.disabled = false;
+    btn.textContent = '▶ Correr backtest';
+    const totalTrades = results.reduce((s, r) => s + (r.trades || 0), 0);
+    const totalMs = results.reduce((s, r) => s + (r._elapsed_ms || 0), 0);
+    $('#bt-status').innerHTML =
+        `<span style="color:#86efac">●</span> Backtest completado: ` +
+        `<b>${totalTrades} trades</b> sobre <b>${results.length}</b> activos · <b>${totalMs} ms</b>`;
 
-    applyBtFilters();
+    drawBacktestResults(results);
 }
 
 function drawBacktestResults(results) {
