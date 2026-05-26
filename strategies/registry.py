@@ -8,17 +8,29 @@ from __future__ import annotations
 
 from strategies.base import Strategy
 from strategies.bb_mr import BBMeanReversionStrategy
+from strategies.donchian_break import DonchianBreakStrategy
 from strategies.ema_momentum import EMAMomentumStrategy
+from strategies.keltner_break import KeltnerBreakStrategy
+from strategies.macd_cross import MACDCrossStrategy
 from strategies.orb import ORBStrategy
+from strategies.pullback_trend import PullbackTrendStrategy
+from strategies.rsi_reversal import RSIReversalStrategy
 from strategies.scalper import ScalperStrategy
 from strategies.vwap_mr import VWAPMeanReversionStrategy
 
 REGISTRY: dict[str, type[Strategy]] = {
+    # Originales (v0.3)
     "ORB": ORBStrategy,
     "VWAP_MR": VWAPMeanReversionStrategy,
     "EMA_MOMENTUM": EMAMomentumStrategy,
     "SCALPER": ScalperStrategy,
     "BB_MR": BBMeanReversionStrategy,
+    # Nuevas (v0.5 — pool ampliado, 10 strats totales, 6 por activo)
+    "PULLBACK_TREND": PullbackTrendStrategy,
+    "DONCHIAN_BREAK": DonchianBreakStrategy,
+    "KELTNER_BREAK": KeltnerBreakStrategy,
+    "MACD_CROSS": MACDCrossStrategy,
+    "RSI_REVERSAL": RSIReversalStrategy,
 }
 
 

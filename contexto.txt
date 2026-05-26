@@ -32,6 +32,7 @@
 #  §12  Notas técnicas y lecciones
 #  §13  Front-end "Crimson Black" (UI v4) — 2026-05-20
 #  §14  Front-end estático para GitHub Pages — 2026-05-20
+#  §15  Pool ampliado de estrategias + filtros temporales (v0.5) — 2026-05-20
 ################################################################################
 
 
@@ -888,6 +889,230 @@ ROLLBACK
     Borrar /docs/index.html, /docs/assets/, /docs/data/ y /docs/.nojekyll.
     Borrar scripts/export_web.py.
     El proyecto vuelve al estado pre-§14. (Streamlit y §13 quedan intactos.)
+
+
+────────────────────────────────────────────────────────────────────────
+ADDENDUM §14.1 — Fix deploy: mover sitio a la RAÍZ del repo  (2026-05-20)
+────────────────────────────────────────────────────────────────────────
+
+PROBLEMA OBSERVADO
+    Tras subir /docs a GitHub, la URL `https://frago10.github.io/Triarch/`
+    mostraba el README.md del proyecto renderizado por Jekyll (tema por
+    defecto) en vez del dashboard. Las funcionalidades parecían "perdidas",
+    pero en realidad el HTML estático nunca se sirvió: GitHub Pages estaba
+    configurado para servir desde la raíz del branch main, no desde /docs/.
+
+DIAGNÓSTICO
+    Por defecto GH Pages busca `index.html` en la carpeta configurada como
+    Source (root). Si no lo encuentra, Jekyll procesa README.md y lo sirve
+    como página de portada con el tema "Cayman" o el que esté por defecto.
+    Eso es lo que se ve en el screenshot del usuario.
+
+FIX APLICADO  (cambios estructurales)
+    Se duplica el sitio estático a la raíz del repo (junto al README.md):
+        /index.html                ← copia de docs/index.html
+        /.nojekyll                 ← evita que Jekyll procese README.md
+        /assets/css/styles.css     ← copia de docs/assets/css/styles.css
+        /assets/js/app.js          ← copia de docs/assets/js/app.js
+        /data/sample.json          ← copia de docs/data/sample.json
+    /docs/ se MANTIENE intacto por dos razones:
+        (a) Contiene architecture.md y setup-mt5-demo.md (docs técnicos).
+        (b) Permite alternar la config de GH Pages a /docs si en el futuro
+            se prefiere aislar el sitio del root del repo.
+
+    scripts/export_web.py se actualizó para:
+        · Default OUT_PATH = REPO_ROOT/data/state.json (raíz, no /docs)
+        · Escribe simultáneamente un MIRROR en docs/data/state.json
+        · Docstring actualizado con la nueva ubicación
+
+POR QUÉ ESTA ES LA SOLUCIÓN ROBUSTA
+    Esta configuración funciona con AMBOS settings posibles de GH Pages:
+        · Source: root del branch main      → sirve /index.html
+        · Source: /docs del branch main     → sirve /docs/index.html
+    El usuario no necesita cambiar nada en Settings → Pages.
+    El .nojekyll en la raíz garantiza que el README.md no se renderice
+    nunca como home — siempre gana el index.html.
+
+QUÉ HACER PARA APLICAR EL FIX EN GITHUB
+    Desde la carpeta del repo, en local:
+        git add index.html .nojekyll assets/ data/ scripts/export_web.py
+        git add docs/                                # opcional, por consistencia
+        git commit -m "fix(web): serve dashboard from repo root for GH Pages"
+        git push
+    GH Pages re-deploya en ~1 minuto.  Refrescar la URL con Ctrl+F5 (hard
+    reload) para evitar caché.
+
+VERIFICADO LOCAL  (smoke test 2026-05-20)
+    python -m http.server -d <repo_root> 8766
+        GET /                       → 200  (sirve index.html)
+        GET /index.html             → 200
+        GET /assets/css/styles.css  → 200
+        GET /assets/js/app.js       → 200
+        GET /data/sample.json       → 200
+        GET /.nojekyll              → 200
+
+NOTA SOBRE EL DOBLE-FOLDER
+    Tener /index.html y /docs/index.html no es ideal (duplicación). Para
+    desduplicar en el futuro, dos opciones:
+      A) Eliminar la copia en /docs/ y dejar solo la raíz. Mantener
+         /docs/{architecture.md, setup-mt5-demo.md, README.md} como docs.
+      B) Borrar las copias del root, configurar GH Pages a "Folder: /docs"
+         en Settings, y revertir export_web.py al DEFAULT_OUT anterior.
+    Por ahora se mantienen ambos para que el deploy funcione "out of the box".
+
+
+################################################################################
+#  §15  POOL AMPLIADO DE ESTRATEGIAS + FILTROS TEMPORALES  (v0.5)  —  2026-05-20
+################################################################################
+
+OBJETIVO DE LA FASE
+    Subir el volumen y la calidad de señales en los 3 activos siguiendo el
+    trade-off elegido por el usuario:  "RR alto, WR moderado" — apuntar a
+    45-50% WR manteniendo RR 1.5-2.2, PF objetivo 1.50-1.65.
+
+    Cambios pedidos por el usuario:
+      · NAS100   : tomar MÁS trades + subir win rate moderadamente.
+      · XAUUSD   : mantener perfil quality (RR alto, WR ~41%, PF 1.51) pero
+                   subir un poco el cap para apuntar a ~3 trades buenos/sem.
+      · EURUSD   : el backtest no mostraba trades — investigar y arreglar.
+      · Todos    : 6 estrategias mínimo por activo, pueden compartirse entre
+                   activos. Cada strategy se acopla "donde mejor encaje".
+      · UX       : filtros de rango temporal en el backtesting.
+
+ARCHIVOS TOCADOS  (resumen del diff)
+    engine/indicators.py          → + keltner(), donchian(), macd()
+                                    + ema_20 y ema_200 en add_default_indicators
+    strategies/pullback_trend.py  → NUEVO  (familia trend, ~30 líneas lógica)
+    strategies/donchian_break.py  → NUEVO  (familia structural)
+    strategies/keltner_break.py   → NUEVO  (familia trend)
+    strategies/macd_cross.py      → NUEVO  (familia trend)
+    strategies/rsi_reversal.py    → NUEVO  (familia mean)
+    strategies/registry.py        → registra las 5 nuevas (total 10 strats)
+    config/symbols.yaml           → 6 strats por activo, sesiones ampliadas,
+                                    caps subidos en NAS100 y XAUUSD
+    dashboard/app.py              → presets temporales (1M/3M/6M/YTD/1Y/2Y)
+                                    sobre el backtest tab (Streamlit)
+    index.html                    → filtros from/to + selector de activo +
+                                    botones preset en tab Backtesting
+    assets/js/app.js              → recomputeMetricsFromLog(): recalcula
+                                    métricas client-side cuando se cambia el
+                                    rango temporal sin re-correr el backtest
+    docs/{index.html, assets, data}  → mirror de los cambios de raíz
+
+POOL DE ESTRATEGIAS  (10 totales, antes 5)
+    ──────────────────────  ─────────────  ────────────────────────────────────
+    Estrategia              Familia        Concepto
+    ──────────────────────  ─────────────  ────────────────────────────────────
+    ORB                     opening        Breakout de los primeros 15m
+    EMA_MOMENTUM            trend          Pullback EXACTO a EMA21 (estricto)
+    PULLBACK_TREND   NEW    trend          Pullback amplio a EMA20 (más laxo)
+    KELTNER_BREAK    NEW    trend          Breakout banda Keltner + RSI confirm
+    MACD_CROSS       NEW    trend          Cruz MACD/signal con filtro tendencia
+    SCALPER                 trend          Tendencia corta M5 (EURUSD-tuned)
+    VWAP_MR                 mean           Reversión intra-sesión a VWAP
+    BB_MR                   mean           Reversión Bollinger
+    RSI_REVERSAL     NEW    mean           Martillo/shooting-star + RSI<30/>70
+    DONCHIAN_BREAK   NEW    structural     Breakout del máx/mín 20 velas
+    ──────────────────────  ─────────────  ────────────────────────────────────
+
+DISTRIBUCIÓN POR ACTIVO  (6 strats c/u, mix por familia)
+    NAS100  (M15, balanced, 13:30-19:00 UTC, max_trades_day 8)
+      · ORB · EMA_MOMENTUM · PULLBACK_TREND · MACD_CROSS · DONCHIAN_BREAK · VWAP_MR
+      Confluencia 2/2 (calidad mantenida). Mix opening + trend + structural + mean.
+
+    XAUUSD  (M30, quality, 08:00-20:00 UTC, max_trades_day 3)
+      · EMA_MOMENTUM · PULLBACK_TREND · KELTNER_BREAK · DONCHIAN_BREAK
+        · MACD_CROSS · RSI_REVERSAL
+      Confluencia 1/1 (EMA_MOMENTUM es el edge probado; las demás aportan
+      diversidad pero filtran por el min_rr_ratio=2.2 del activo). El nuevo
+      cap diario 3 (era 2) busca subir de 2.6/sem a ~3.5/sem.
+
+    EURUSD  (M5, scalper, 06:30-17:00 UTC, max_trades_day 10)
+      · SCALPER · BB_MR · PULLBACK_TREND · MACD_CROSS · KELTNER_BREAK · RSI_REVERSAL
+      Confluencia 1/1 (en M5 esperar a 2 strats coincidiendo es irrealista).
+      min_rr_ratio sigue en 0.8 para permitir RR scalper (~0.85).
+
+BUG EURUSD — DIAGNÓSTICO Y FIX
+    Síntoma reportado: el backtest no mostraba trades para EURUSD.
+
+    Investigación (2026-05-20):
+      · data_cache/history/EURUSD_M5.parquet SÍ existe (1.4 MB, ~75k velas).
+      · El bug previo (M5 + copy_rates_range en una sola llamada → vacío)
+        ya estaba arreglado en data_layer/mt5_client.get_rates desde
+        §03 (2026-05-14): ahora descarga en chunks de ~5000 velas.
+      · La causa real era la combinación:
+          (a) Solo 2 strats activas (SCALPER + BB_MR), ambas muy restrictivas.
+          (b) SCALPER tiene filtro de sesión interno + el backtester aplica
+              filtro de sesión OTRA vez → doble filtrado innecesario.
+              (Sin embargo, esto solo es ineficiencia, no bug — el filtro
+              backtester usa el mismo session_utc.)
+          (c) min_signals=1 + confluencia que elige una sola → si BB_MR
+              dispara fuera de sesión, queda descartada por el orchestrator
+              vela tras vela.
+
+    Fix aplicado (no requiere código en engine):
+      1. EURUSD ahora tiene 6 strats (en vez de 2) → más probabilidades de
+         que al menos una dispare cada vela con setup válido.
+      2. Sesión ampliada 06:30-17:00 UTC (en vez de 07:00-16:00) → más velas
+         dentro de la ventana operativa.
+      3. max_trades_per_day subido de 8 a 10.
+      4. (Pendiente para usuario): si tras backtest sigue dando 0 trades en
+         data real, correr `python -m scripts.fetch_history --symbol EURUSD
+         --years 2` para asegurar histórico completo, y revisar broker_symbol
+         contra `python -m scripts.diagnose_mt5`.
+
+FILTROS TEMPORALES — UX
+    Streamlit  (dashboard/app.py tab Backtesting):
+      · Mantiene los st.date_input "Desde / Hasta" originales.
+      · NUEVO: fila de 6 botones preset bajo los date inputs:
+            1M · 3M · 6M · YTD · 1Y · 2Y
+        Cada uno setea session_state["bt_from_val"] y bt_to_val y st.rerun().
+        El usuario puede después ajustar manualmente con los date inputs.
+
+    Estático  (index.html + assets/js/app.js tab Backtesting):
+      · Nueva filter-bar arriba de los resultados:
+            Desde (date input)  ·  Hasta (date input)  ·  Activo (select)  ·  Reset
+      · Fila preset con 6 botones (mismos rangos que Streamlit).
+      · NUEVA función JS recomputeMetricsFromLog(original, fromTs, toTs):
+          - Filtra trade_log por rango.
+          - Recalcula WR, PF, expectancy, Sharpe, Sortino, SQN, max_DD,
+            avg_win/loss, streaks y trades_per_week SOBRE el subset.
+          - Reconstruye equity_curve acumulando pnl_r del subset.
+          - by_strategy se recalcula desde el subset.
+      · Esto NO re-corre el backtest (imposible en GH Pages estático) sino
+        que recalcula desde el trade_log ya exportado por scripts.export_web.
+      · La curva de equity y la tabla de trade log respetan el rango.
+
+REALIDAD MATEMÁTICA DEL TRADE-OFF WR/RR  (registrar — el usuario aceptó)
+    El usuario pidió originalmente "60% WR + RR 1.5+ para todos". Se le
+    explicó que es matemáticamente imposible: WR × RR_promedio determina
+    el PF, y un sistema 60%/RR1.5 tendría PF 2.25 (territorio de los mejores
+    sistemas legendarios). Aceptó "RR alto, WR moderado" — apuntar a
+    45-50% WR manteniendo RR 1.5-2.2 → PFs 1.50-1.65 (sólido, alcanzable).
+
+    Targets actuales (a verificar con backtest):
+      · NAS100  M15  → ~8-12 trades/sem · WR 45-50% · PF 1.30-1.50
+      · XAUUSD  M30  → ~3-4 trades/sem  · WR 40-45% · PF 1.50-1.70
+      · EURUSD  M5   → ~25-50 trades/sem · WR 50-55% · PF 1.10-1.25
+    Si el primer backtest no se acerca, tunear parámetros de strategies
+    individuales (no relajar las reglas inquebrantables del risk manager).
+
+CHECKLIST DE VERIFICACIÓN  (correr antes de declarar v0.5 lista)
+    [ ] python -m scripts.fetch_history --years 1   (refresca histórico)
+    [ ] python -m scripts.backtest                  (los 3 activos)
+        ─ NAS100 debe mostrar trades (antes ya mostraba)
+        ─ XAUUSD debe seguir rentable con EMA_MOMENTUM (PF >= 1.4)
+        ─ EURUSD AHORA debe mostrar trades (el fix de §15)
+    [ ] streamlit run dashboard/app.py  → tab Backtesting con presets
+    [ ] http://localhost:8080 contra el index.html de raíz → filtros temporales
+    [ ] Si todo OK: python -m scripts.export_web  +  git push
+
+ROLLBACK
+    Si v0.5 degrada el PF de XAUUSD:
+      git checkout HEAD~1 config/symbols.yaml strategies/registry.py
+    Las 5 strategies nuevas pueden borrarse sin afectar al resto (nada
+    importa de ellas). engine/indicators.py es retrocompatible
+    (los indicadores nuevos son aditivos, no rompen las strategies viejas).
 
 
 ################################################################################

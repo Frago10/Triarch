@@ -1037,15 +1037,33 @@ with tab_bt:
     with bt2:
         from_d = st.date_input(
             "Desde",
-            value=date.today() - timedelta(days=365),
+            value=st.session_state.get("bt_from_val", date.today() - timedelta(days=365)),
             key="bt_from",
         )
     with bt3:
         to_d = st.date_input(
             "Hasta",
-            value=date.today(),
+            value=st.session_state.get("bt_to_val", date.today()),
             key="bt_to",
         )
+
+    # ─── Presets rápidos de rango temporal ───
+    st.caption("Presets rápidos:")
+    p1, p2, p3, p4, p5, p6 = st.columns(6)
+    _today = date.today()
+    _presets = [
+        (p1, "1M",  _today - timedelta(days=30)),
+        (p2, "3M",  _today - timedelta(days=90)),
+        (p3, "6M",  _today - timedelta(days=180)),
+        (p4, "YTD", date(_today.year, 1, 1)),
+        (p5, "1Y",  _today - timedelta(days=365)),
+        (p6, "2Y",  _today - timedelta(days=730)),
+    ]
+    for col, label, start_d in _presets:
+        if col.button(label, key=f"bt_preset_{label}", use_container_width=True):
+            st.session_state["bt_from_val"] = start_d
+            st.session_state["bt_to_val"] = _today
+            st.rerun()
 
     run_bt = st.button("▶  Correr backtest", type="primary", use_container_width=True)
 

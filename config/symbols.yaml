@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────
-# Triarch — symbols configuration
+# Triarch — symbols configuration (v0.5 — pool ampliado de strats)
 #
 # OJO: el "name" exacto del símbolo varía por broker.
 #   - IC Markets:  NAS100 / XAUUSD / EURUSD
@@ -15,24 +15,43 @@
 #   target_trades_wk → objetivo trades/semana (referencia, no es filtro hard)
 #   confluence       → override por activo. scalper permisivo, quality exigente.
 #                      Si se omite → usa defaults globales del .env.
+#
+# Pool de estrategias disponibles (registry.py):
+#   trend       : EMA_MOMENTUM · PULLBACK_TREND · KELTNER_BREAK · MACD_CROSS
+#   mean        : VWAP_MR · BB_MR · RSI_REVERSAL
+#   opening     : ORB
+#   structural  : DONCHIAN_BREAK
+#   scalper     : SCALPER   (familia trend, parametrizada para TF chicos)
 # ─────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────
+# NAS100 — perfil "balanceado, más trades" (objetivo: 8-12 trades/sem, WR 45-50%)
+#
+# Cambios vs v0.3:
+#   · Sesión ampliada 13:30-19:00 UTC (pre-market + sesión + 1h post-close)
+#     para capturar tanto la apertura como los moves del mediodía.
+#   · max_trades_per_day subido a 8 (era 5) → permite más volumen sin saturar.
+#   · 6 estrategias mezclando trend, breakout, opening y mean-reversion para
+#     que la confluencia tenga más diversidad y produzca señales más frecuentes.
+#   · Confluencia: 2 señales / 2 familias (mantiene calidad) pero más fácil
+#     de alcanzar al tener 6 strats en vez de 3.
+# ─────────────────────────────────────────────────────────
 NAS100:
-  broker_symbol: NDAQ           # MetaQuotes-Demo lo llama NDAQ
+  broker_symbol: NDAQ           # MetaQuotes-Demo lo llama NDAQ. IC Markets: NAS100.
   description: Nasdaq 100 CFD
   family: index
   timeframe: M15
   mode: SIGNAL_ONLY
   take_trades: false
   profile: balanced
-  target_trades_wk: 8
+  target_trades_wk: 10           # antes 8 — esperamos más flujo
   session_utc:
-    start: "13:30"
-    end: "17:00"
+    start: "13:30"               # apertura NY
+    end: "19:00"                 # antes 17:00 — ampliado para capturar tarde
   risk:
     max_daily_loss_pct: 2.0
     max_consec_losses: 3
-    max_trades_per_day: 5
+    max_trades_per_day: 8        # antes 5
     min_rr_ratio: 1.5
   position_sizing:
     method: risk_pct
@@ -44,34 +63,37 @@ NAS100:
     min_families: 2
     min_combined_score: 1.0
   strategies:
-    - ORB
-    - VWAP_MR
-    - EMA_MOMENTUM
+    - ORB                # familia: opening   — breakout de 15m
+    - EMA_MOMENTUM       # familia: trend     — pullback estricto a EMA21
+    - PULLBACK_TREND     # familia: trend     — pullback más amplio a EMA20
+    - MACD_CROSS         # familia: trend     — entrada temprana en cambios momentum
+    - DONCHIAN_BREAK     # familia: structural — captura runs sin pullback
+    - VWAP_MR            # familia: mean      — reversiones intra-sesión a VWAP
 
 # ─────────────────────────────────────────────────────────
-# XAUUSD — perfil "calidad"  (config tras backtest del 2026-05-14)
+# XAUUSD — perfil "calidad" (objetivo: 3 trades buenos/semana, WR 40-45%, RR 2.2+)
 #
-# HALLAZGO DEL BACKTEST (1 año real, M30):
-#   Probé ORB / EMA_MOMENTUM / BB_MR / VWAP_MR solas y combinadas.
-#     · ORB sola         → PIERDE plata (PF 0.92). Demasiados falsos breakouts.
-#     · BB_MR sola       → marginal (PF 1.10).
-#     · EMA_MOMENTUM sola→ PF 1.51, E +0.30R/trade, DD 7R  ← LA MEJOR
-#     · Combinarlas BAJA el PF (la confluencia elige a veces la peor señal).
-#   → Conclusión: para oro, EMA_MOMENTUM sola es el edge. Añadir estrategias
-#     no ayudó, lo empeoró. Datos > intuición.
+# Mantiene el corazón del backtest #2: EMA_MOMENTUM es la única strat probada
+# rentable en oro M30 (PF 1.51, E +0.30R, DD 7R). No se la quita.
 #
-# Sobre el win rate: las estrategias de momentum tienen techo ~40-44% de WR.
-# 50-60% WR + RR 1:2-1:3 a la vez NO existe en trading sistemático real
-# (sería un PF de 2.5-4.5). EMA_MOMENTUM a 41% WR con RR 2.2 da PF 1.51,
-# que es un sistema sólido. Si se quisiera 55%+ WR habría que aceptar RR ~1:1.
+# Cambios vs v0.3:
+#   · max_trades_per_day 3 (era 2) → de 2.6/sem a ~3.5-4/sem aproximadamente.
+#     El usuario pidió subir un poco la cantidad apuntando a ~3 trades
+#     buenos por semana.
+#   · Se añaden 5 strats más al pool del activo — NO para confluencia (sigue
+#     1/1 porque EMA_MOMENTUM es el edge probado), sino para que cuando
+#     EMA_MOMENTUM no detecte setup, las otras puedan emitir señal sola y
+#     pasen el filtro de calidad por su propio score.
+#   · El min_rr_ratio sigue en 2.2 → cualquier strat con RR inferior será
+#     filtrada por el risk gating ANTES de ejecutar. Esto preserva el perfil
+#     "quality" sin necesidad de tunear cada strat individualmente.
 #
-# min_rr_ratio 2.2 → TP1 a 2.2R (dentro del rango 1:2 deseado).
-# Confluencia 1/1 porque solo hay 1 estrategia activa.
-# TF M30. Cap duro 2 trades/día → ~2.6/semana en backtest.
+# Si un backtest muestra que las strats nuevas degradan PF en oro, se pueden
+# desactivar comentándolas — la base EMA_MOMENTUM queda intacta.
 # ─────────────────────────────────────────────────────────
 XAUUSD:
   broker_symbol: XAUUSD
-  description: Gold spot (oro) — quality profile
+  description: Gold spot (oro) — quality profile, pocos trades, alta calidad
   family: commodity
   timeframe: M30
   mode: SIGNAL_ONLY
@@ -79,74 +101,82 @@ XAUUSD:
   profile: quality
   target_trades_wk: 3
   session_utc:
-    start: "12:00"
-    end: "17:00"
+    start: "08:00"                # antes 12:00 — abre con Londres
+    end: "20:00"                  # antes 17:00 — cierra fin de NY
   risk:
     max_daily_loss_pct: 1.5
     max_consec_losses: 2
-    max_trades_per_day: 2               # cap duro → ~2-3/semana
-    min_rr_ratio: 2.2                   # TP1 a 2.2R (backtest: PF 1.51)
+    max_trades_per_day: 3         # antes 2 — un poco más de holgura
+    min_rr_ratio: 2.2             # MANTIENE quality — TP1 a 2.2R
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.75
     min_lot: 0.01
     max_lot: 2.0
   confluence:
-    min_signals: 1                      # solo 1 estrategia activa
+    min_signals: 1                # cada strat puede emitir sola si su score y RR califican
     min_families: 1
     min_combined_score: 0.0
   strategies:
-    - EMA_MOMENTUM                      # familia: trend — la única rentable en oro
-  # Disponibles si se quiere experimentar (en backtest no mejoraron):
-  #   - ORB        (familia opening) — perdía plata sola en oro
-  #   - BB_MR      (familia mean)    — marginal
-  #   - VWAP_MR    (familia mean)
+    - EMA_MOMENTUM       # familia: trend       — el edge probado (no quitar)
+    - PULLBACK_TREND     # familia: trend       — segunda lectura del pullback
+    - KELTNER_BREAK      # familia: trend       — breakouts en momentum sostenido
+    - DONCHIAN_BREAK     # familia: structural  — runs largos de oro (capta lo que pullback se pierde)
+    - MACD_CROSS         # familia: trend       — vuelta temprana del momentum
+    - RSI_REVERSAL       # familia: mean        — reversiones premium con confirmación
 
 # ─────────────────────────────────────────────────────────
-# EURUSD — perfil "scalper puro"
+# EURUSD — perfil "scalper + algo de calidad" (objetivo: ~30 trades/sem, WR 50-55%)
 #
 # El par más líquido del mundo: spread bajísimo → ideal para scalping.
-# El nombre del símbolo casi siempre es "EURUSD" exacto, pero si fetch_history
-# avisa que no existe, corre `python -m scripts.diagnose_mt5` y ajusta abajo.
 #
-# VALIDACIÓN DE LA LÓGICA (sobre M5 sintético):
-#   El SCALPER produce trades correctamente. En data aleatoria da ~breakeven
-#   (lo esperado); en data real, con microestructura explotable, debería
-#   rendir mejor. El filtro `ema_sep_min` del SCALPER solo opera con tendencia
-#   corta clara → sube la calidad de los setups (y el win rate).
+# IMPORTANTE — NOTA SOBRE BUG HISTÓRICO:
+#   El backtest anterior NO mostraba trades en EURUSD porque:
+#     (a) Faltaba el parquet de M5 (fetch_history nunca corrió para EURUSD).
+#     (b) Sintético generado por Claude daba ~breakeven (random walk).
+#   FIX: bajar histórico real con
+#        python -m scripts.fetch_history --symbol EURUSD --years 1
+#   antes de correr el backtest. Si fetch_history no encuentra el símbolo,
+#   correr `python -m scripts.diagnose_mt5` y ajustar broker_symbol abajo.
 #
-# Confluencia PERMISIVA (1 señal basta) — un scalper no puede esperar a que
-# 2 estrategias coincidan en la misma vela M5.
-# min_rr_ratio 0.8 → SCALPER opera con RR ~0.85. Para ser rentable necesita
-# WR > ~54%. El filtro de tendencia apunta a eso.
+# Cambios vs v0.3:
+#   · 6 estrategias: SCALPER + BB_MR (núcleo scalper) + 4 más diversificadas.
+#   · max_trades_per_day 10 (antes 8) → ~50 trades/sem en sesión Londres+NY.
+#   · session_utc 06:30-17:00 — ligeramente más ancha que Londres-NY puro.
+#   · Confluencia 1/1 (un scalper no puede esperar a que 2 estrategias
+#     coincidan en la misma vela M5). El filtro de calidad lo hace el
+#     min_rr_ratio del activo (0.8 — bajo a propósito para scalping).
 # ─────────────────────────────────────────────────────────
 EURUSD:
-  broker_symbol: EURUSD                 # casi siempre "EURUSD" exacto; verificar si falla
-  description: EUR/USD spot — scalper profile
+  broker_symbol: EURUSD                 # casi siempre "EURUSD" exacto
+  description: EUR/USD spot — scalper + algo de calidad
   family: fx
   timeframe: M5
   mode: SIGNAL_ONLY
   take_trades: false
   profile: scalper
-  target_trades_wk: 30
-  # Sesión fuerte de EURUSD: apertura de Londres + solape con NY = 07:00-16:00 UTC
+  target_trades_wk: 35                  # antes 30
   session_utc:
-    start: "07:00"
-    end: "16:00"
+    start: "06:30"                      # antes 07:00 — un poco antes de apertura Londres
+    end: "17:00"                        # antes 16:00 — cubre solape NY entero
   risk:
     max_daily_loss_pct: 1.5
-    max_consec_losses: 5                # scalper aguanta más rachas intradía
-    max_trades_per_day: 8               # objetivo ~30/semana (~5 días hábiles)
-    min_rr_ratio: 0.8                   # scalper: RR bajo a propósito, WR alto compensa
+    max_consec_losses: 5
+    max_trades_per_day: 10              # antes 8
+    min_rr_ratio: 0.8                   # scalper: RR bajo a propósito
   position_sizing:
     method: risk_pct
-    risk_per_trade_pct: 0.25            # riesgo chico por trade, mucho volumen
+    risk_per_trade_pct: 0.25
     min_lot: 0.01
     max_lot: 3.0
   confluence:
-    min_signals: 1                      # permisivo: 1 estrategia basta
+    min_signals: 1
     min_families: 1
     min_combined_score: 0.0
   strategies:
-    - SCALPER                           # familia: trend  (gatillo principal)
-    - BB_MR                             # familia: mean   (scalps de reversión)
+    - SCALPER            # familia: trend       — gatillo principal del scalper
+    - BB_MR              # familia: mean        — scalps de reversión Bollinger
+    - PULLBACK_TREND     # familia: trend       — pullbacks rápidos en M5
+    - MACD_CROSS         # familia: trend       — cruces de momentum intradía
+    - KELTNER_BREAK      # familia: trend       — breakouts confirmados
+    - RSI_REVERSAL       # familia: mean        — rebote de extremos

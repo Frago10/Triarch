@@ -107,12 +107,55 @@ def opening_range(df: pd.DataFrame, minutes: int = 15) -> pd.DataFrame:
     return df.drop(columns=["date", "minute_of_day"])
 
 
+def keltner(
+    df: pd.DataFrame, ema_period: int = 20, atr_period: int = 14, atr_mult: float = 2.0
+) -> pd.DataFrame:
+    """
+    Keltner Channels — banda central EMA + bandas a ±atr_mult × ATR.
+    Más estables que Bollinger en mercados con volatilidad cambiante porque
+    el ancho lo dicta el ATR (volatilidad real) en vez del stdev del precio.
+    """
+    mid = ema(df["close"], ema_period)
+    a = atr(df, atr_period)
+    upper = mid + atr_mult * a
+    lower = mid - atr_mult * a
+    width = (upper - lower) / mid
+    return pd.DataFrame({"mid": mid, "upper": upper, "lower": lower, "width": width})
+
+
+def donchian(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
+    """
+    Donchian Channels — máximo y mínimo de las últimas `period` velas (excluyendo
+    la actual para evitar look-ahead). Base de Turtle Trading.
+    """
+    high = df["high"].rolling(period).max().shift(1)
+    low = df["low"].rolling(period).min().shift(1)
+    mid = (high + low) / 2.0
+    return pd.DataFrame({"upper": high, "lower": low, "mid": mid})
+
+
+def macd(
+    series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> pd.DataFrame:
+    """
+    MACD clásico — diff de EMA rápida y lenta, más su línea de señal.
+    """
+    fast_ema = ema(series, fast)
+    slow_ema = ema(series, slow)
+    macd_line = fast_ema - slow_ema
+    sig_line = ema(macd_line, signal)
+    hist = macd_line - sig_line
+    return pd.DataFrame({"macd": macd_line, "signal": sig_line, "hist": hist})
+
+
 def add_default_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Añade en su sitio el set de indicadores por defecto."""
     df = df.copy()
     df["ema_9"] = ema(df["close"], 9)
+    df["ema_20"] = ema(df["close"], 20)
     df["ema_21"] = ema(df["close"], 21)
     df["ema_50"] = ema(df["close"], 50)
+    df["ema_200"] = ema(df["close"], 200)
     df["atr_14"] = atr(df, 14)
     df["rsi_14"] = rsi(df["close"], 14)
     bb = bollinger(df["close"], 20, 2.0)
@@ -120,6 +163,22 @@ def add_default_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["bb_upper"] = bb["upper"]
     df["bb_lower"] = bb["lower"]
     df["bb_width"] = bb["width"]
+    # ─── Keltner Channels (ATR-based, complementa BB) ───
+    kc = keltner(df, ema_period=20, atr_period=14, atr_mult=2.0)
+    df["kc_mid"] = kc["mid"]
+    df["kc_upper"] = kc["upper"]
+    df["kc_lower"] = kc["lower"]
+    df["kc_width"] = kc["width"]
+    # ─── Donchian Channels (breakouts estructurales) ───
+    dc = donchian(df, period=20)
+    df["dc_upper"] = dc["upper"]
+    df["dc_lower"] = dc["lower"]
+    df["dc_mid"] = dc["mid"]
+    # ─── MACD ───
+    m = macd(df["close"])
+    df["macd"] = m["macd"]
+    df["macd_signal"] = m["signal"]
+    df["macd_hist"] = m["hist"]
     if "tick_volume" in df.columns:
         df["vwap"] = vwap(df)
     return df

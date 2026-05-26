@@ -207,8 +207,39 @@
             <p class="section-caption">
                 Esta es una <b>vista de resultados</b>: la corrida real ocurre en local
                 con <code>python -m scripts.backtest</code> y se exporta a JSON vía
-                <code>python -m scripts.export_web</code>. La web muestra el último snapshot.
+                <code>python -m scripts.export_web</code>. La web muestra el último snapshot
+                y permite recortar el rango temporal sin volver a correr el backtest.
             </p>
+
+            <div class="filter-bar">
+                <div class="filter">
+                    <label>Desde</label>
+                    <input type="date" id="bt-from">
+                </div>
+                <div class="filter">
+                    <label>Hasta</label>
+                    <input type="date" id="bt-to">
+                </div>
+                <div class="filter">
+                    <label>Activo</label>
+                    <select id="bt-symbol-filter">
+                        <option value="">(todos)</option>
+                    </select>
+                </div>
+                <div class="filter">
+                    <label>&nbsp;</label>
+                    <button class="btn" id="bt-reset">↺ Reset rango</button>
+                </div>
+            </div>
+
+            <div class="radio-row" id="bt-preset-row">
+                <button class="btn" data-bt-preset="1m">1M</button>
+                <button class="btn" data-bt-preset="3m">3M</button>
+                <button class="btn" data-bt-preset="6m">6M</button>
+                <button class="btn" data-bt-preset="ytd">YTD</button>
+                <button class="btn" data-bt-preset="1y">1Y</button>
+                <button class="btn" data-bt-preset="all">Todo</button>
+            </div>
 
             <div id="bt-results"></div>
         </section>

@@ -456,10 +456,103 @@ function renderDecisions(data) {
 }
 
 /* ═══════════════ Tab 4 — Backtesting ═══════════════ */
+/* Recalcula métricas desde un trade_log filtrado por rango temporal.
+   Devuelve el mismo shape que el backtest_result original, para que el
+   render existente lo consuma sin cambios. */
+function recomputeMetricsFromLog(original, fromTs, toTs) {
+    const log = (original.trade_log || []).filter(t => {
+        const ts = new Date(t.time).getTime();
+        if (fromTs && ts < fromTs) return false;
+        if (toTs && ts > toTs) return false;
+        return true;
+    });
+    if (!log.length) {
+        return {
+            ...original,
+            trades: 0,
+            note: 'Sin trades en el rango temporal seleccionado.',
+            trade_log: [],
+            equity_curve: [],
+            by_strategy: {},
+        };
+    }
+    const returns = log.map(t => t.pnl_r);
+    const wins = returns.filter(r => r > 0);
+    const losses = returns.filter(r => r < 0);
+    const grossWin = wins.reduce((s, x) => s + x, 0);
+    const grossLoss = -losses.reduce((s, x) => s + x, 0);
+    const expectancy = returns.reduce((s, x) => s + x, 0) / returns.length;
+    const mean = expectancy;
+    const variance = returns.reduce((s, x) => s + (x - mean) ** 2, 0) / Math.max(returns.length - 1, 1);
+    const sd = Math.sqrt(variance);
+    const sharpe = sd > 0 ? (mean / sd) * Math.sqrt(252) : 0;
+    const downsideSd = (() => {
+        if (losses.length < 2) return 0;
+        const m = losses.reduce((s, x) => s + x, 0) / losses.length;
+        const v = losses.reduce((s, x) => s + (x - m) ** 2, 0) / Math.max(losses.length - 1, 1);
+        return Math.sqrt(v);
+    })();
+    const sortino = downsideSd > 0 ? (mean / downsideSd) * Math.sqrt(252) : 0;
+    const sqn = sd > 0 ? Math.sqrt(returns.length) * mean / sd : 0;
+    let cum = 0, peak = 0, maxDd = 0;
+    const equity = log.map(t => {
+        cum += t.pnl_r;
+        peak = Math.max(peak, cum);
+        maxDd = Math.max(maxDd, peak - cum);
+        return { time: t.time, cum_r: cum };
+    });
+    /* by_strategy */
+    const byStrat = {};
+    log.forEach(t => {
+        const k = t.strategy;
+        if (!byStrat[k]) byStrat[k] = { trades: 0, total_r: 0 };
+        byStrat[k].trades++;
+        byStrat[k].total_r += t.pnl_r;
+    });
+    Object.values(byStrat).forEach(v => {
+        v.expectancy_r = v.total_r / v.trades;
+        v.total_r = Math.round(v.total_r * 1000) / 1000;
+        v.expectancy_r = Math.round(v.expectancy_r * 1000) / 1000;
+    });
+    /* streaks */
+    let curW = 0, curL = 0, longW = 0, longL = 0;
+    returns.forEach(r => {
+        if (r > 0) { curW++; longW = Math.max(longW, curW); curL = 0; }
+        else if (r < 0) { curL++; longL = Math.max(longL, curL); curW = 0; }
+    });
+    /* trades per week */
+    const ts = log.map(t => new Date(t.time).getTime());
+    const spanDays = (Math.max(...ts) - Math.min(...ts)) / (1000 * 86400);
+    const tradesPerWeek = spanDays > 0 ? (log.length / (spanDays / 7)) : log.length;
+
+    return {
+        ...original,
+        trades: log.length,
+        win_rate: wins.length / log.length,
+        profit_factor: grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0),
+        expectancy_r: expectancy,
+        sharpe_ratio: sharpe,
+        sortino_ratio: sortino,
+        sqn: sqn,
+        max_drawdown_r: maxDd,
+        avg_win_r: wins.length ? wins.reduce((s, x) => s + x, 0) / wins.length : 0,
+        avg_loss_r: losses.length ? losses.reduce((s, x) => s + x, 0) / losses.length : 0,
+        longest_win_streak: longW,
+        longest_loss_streak: longL,
+        trades_per_week_avg: Math.round(tradesPerWeek * 100) / 100,
+        by_strategy: byStrat,
+        equity_curve: equity,
+        trade_log: log,
+        note: '',
+    };
+}
+
+let BT_BASE_RESULTS = [];  /* snapshot original sin filtrar */
+
 function renderBacktest(data) {
-    const results = data.backtest_results || [];
+    BT_BASE_RESULTS = data.backtest_results || [];
     const container = $('#bt-results');
-    if (!results.length) {
+    if (!BT_BASE_RESULTS.length) {
         container.innerHTML = `<div class="empty">
             <div class="emoji">📊</div>
             <div>Aún no hay un backtest exportado.</div>
@@ -467,6 +560,71 @@ function renderBacktest(data) {
         </div>`;
         return;
     }
+
+    /* Determinar el rango temporal completo (de TODOS los trade_log unidos) */
+    const allTs = BT_BASE_RESULTS
+        .flatMap(r => r.trade_log || [])
+        .map(t => new Date(t.time).getTime())
+        .filter(n => !isNaN(n));
+    const minTs = allTs.length ? Math.min(...allTs) : null;
+    const maxTs = allTs.length ? Math.max(...allTs) : null;
+
+    /* Llenar el selector de activos */
+    const sel = $('#bt-symbol-filter');
+    sel.innerHTML = '<option value="">(todos)</option>' +
+        BT_BASE_RESULTS.map(r => `<option>${r.symbol}</option>`).join('');
+
+    /* Set defaults en los date inputs si están vacíos */
+    if (minTs && !$('#bt-from').value) $('#bt-from').value = new Date(minTs).toISOString().slice(0, 10);
+    if (maxTs && !$('#bt-to').value) $('#bt-to').value = new Date(maxTs).toISOString().slice(0, 10);
+
+    function applyBtFilters() {
+        const fromVal = $('#bt-from').value;
+        const toVal = $('#bt-to').value;
+        const symF = $('#bt-symbol-filter').value;
+        const fromTs = fromVal ? new Date(fromVal + 'T00:00:00Z').getTime() : null;
+        const toTs = toVal ? new Date(toVal + 'T23:59:59Z').getTime() : null;
+
+        let filtered = BT_BASE_RESULTS;
+        if (symF) filtered = filtered.filter(r => r.symbol === symF);
+        const isFullRange = (!fromTs || fromTs <= minTs) && (!toTs || toTs >= maxTs);
+        if (!isFullRange) {
+            filtered = filtered.map(r => r.error ? r : recomputeMetricsFromLog(r, fromTs, toTs));
+        }
+        drawBacktestResults(filtered);
+    }
+
+    /* Listeners */
+    ['#bt-from', '#bt-to', '#bt-symbol-filter'].forEach(s =>
+        $(s).addEventListener('change', applyBtFilters));
+    $('#bt-reset').addEventListener('click', () => {
+        if (minTs) $('#bt-from').value = new Date(minTs).toISOString().slice(0, 10);
+        if (maxTs) $('#bt-to').value = new Date(maxTs).toISOString().slice(0, 10);
+        $('#bt-symbol-filter').value = '';
+        applyBtFilters();
+    });
+    $$('#bt-preset-row [data-bt-preset]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const preset = btn.dataset.btPreset;
+            const today = new Date();
+            let from;
+            if (preset === '1m') from = new Date(today.getTime() - 30 * 86400e3);
+            else if (preset === '3m') from = new Date(today.getTime() - 90 * 86400e3);
+            else if (preset === '6m') from = new Date(today.getTime() - 180 * 86400e3);
+            else if (preset === 'ytd') from = new Date(today.getFullYear(), 0, 1);
+            else if (preset === '1y') from = new Date(today.getTime() - 365 * 86400e3);
+            else if (preset === 'all' && minTs) from = new Date(minTs);
+            if (from) $('#bt-from').value = from.toISOString().slice(0, 10);
+            $('#bt-to').value = today.toISOString().slice(0, 10);
+            applyBtFilters();
+        });
+    });
+
+    applyBtFilters();
+}
+
+function drawBacktestResults(results) {
+    const container = $('#bt-results');
 
     /* tabla resumen */
     const summary = results.map(r => {
