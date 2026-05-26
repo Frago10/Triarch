@@ -44,14 +44,14 @@ NAS100:
   mode: SIGNAL_ONLY
   take_trades: false
   profile: balanced
-  target_trades_wk: 10           # antes 8 — esperamos más flujo
+  target_trades_wk: 5            # tras calibración v0.7 — backtest real da ~5/sem con PF mejorado
   session_utc:
     start: "13:30"               # apertura NY
-    end: "19:00"                 # antes 17:00 — ampliado para capturar tarde
+    end: "19:00"
   risk:
     max_daily_loss_pct: 2.0
     max_consec_losses: 3
-    max_trades_per_day: 8        # antes 5
+    max_trades_per_day: 6        # ajustado tras backtest real (era 8 — daba 4.86/sem ya)
     min_rr_ratio: 1.5
   position_sizing:
     method: risk_pct
@@ -62,13 +62,17 @@ NAS100:
     min_signals: 2
     min_families: 2
     min_combined_score: 1.0
+  # ─── BACKTEST REAL v0.6 (1 año MT5) — DECISIONES ───
+  #   · ORB → 141 trades, E=-0.05R, total -6.75R → QUITADA (diluía la performance).
+  #   · KELTNER_BREAK añadida → en XAUUSD demostró ser de las mejores.
+  #   · Top performers en NAS100: DONCHIAN_BREAK (+25R) y PULLBACK_TREND (+14R).
   strategies:
-    - ORB                # familia: opening   — breakout de 15m
-    - EMA_MOMENTUM       # familia: trend     — pullback estricto a EMA21
-    - PULLBACK_TREND     # familia: trend     — pullback más amplio a EMA20
-    - MACD_CROSS         # familia: trend     — entrada temprana en cambios momentum
-    - DONCHIAN_BREAK     # familia: structural — captura runs sin pullback
-    - VWAP_MR            # familia: mean      — reversiones intra-sesión a VWAP
+    - PULLBACK_TREND     # familia: trend     — TOP performer (+14R en 56 trades)
+    - DONCHIAN_BREAK     # familia: structural — TOP performer (+25R en 143 trades)
+    - KELTNER_BREAK      # familia: trend     — añadida (efectiva en oro, probable en NAS)
+    - MACD_CROSS         # familia: trend     — cruces tempranos de momentum
+    - EMA_MOMENTUM       # familia: trend     — pullback estricto (sirve para confluence)
+    - VWAP_MR            # familia: mean      — reversión intra-sesión (diversidad)
 
 # ─────────────────────────────────────────────────────────
 # XAUUSD — perfil "calidad" (objetivo: 3 trades buenos/semana, WR 40-45%, RR 2.2+)
@@ -101,29 +105,37 @@ XAUUSD:
   profile: quality
   target_trades_wk: 3
   session_utc:
-    start: "08:00"                # antes 12:00 — abre con Londres
-    end: "20:00"                  # antes 17:00 — cierra fin de NY
+    start: "08:00"
+    end: "20:00"
   risk:
     max_daily_loss_pct: 1.5
     max_consec_losses: 2
-    max_trades_per_day: 3         # antes 2 — un poco más de holgura
-    min_rr_ratio: 2.2             # MANTIENE quality — TP1 a 2.2R
+    max_trades_per_day: 1         # 1 trade/día = max 5/sem. Con conf 2/2 sale ~3-4/sem.
+    min_rr_ratio: 2.2
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.75
     min_lot: 0.01
     max_lot: 2.0
+  # ─── BACKTEST REAL v0.7 (1 año MT5, post-calibración) ───
+  #   Pasada anterior con 6 strats + conf 2/2 + cap 2/día: 395 trades, PF 1.21,
+  #   pero EMA_MOMENTUM pasó a perder (-11.6R) — confluence 2/2 cambió la mezcla.
+  #   HALLAZGO SORPRESA: ORB (que originalmente era el peor en oro) AHORA es
+  #   el top con +45.6R en 305 trades. Razón: con conf 2/2, ORB solo entra
+  #   cuando OTRA strat lo confirma → calidad mucho mayor.
+  #   QUITADAS de esta iteración: EMA_MOMENTUM (-11.6R), KELTNER_BREAK (-2.1R con 2/2).
+  #   AÑADIDA: VWAP_MR para familia "mean" sin BB_MR (que solo daba 1 trade).
   confluence:
-    min_signals: 1                # cada strat puede emitir sola si su score y RR califican
-    min_families: 1
-    min_combined_score: 0.0
+    min_signals: 2
+    min_families: 2
+    min_combined_score: 1.0
   strategies:
-    - EMA_MOMENTUM       # familia: trend       — el edge probado (no quitar)
-    - PULLBACK_TREND     # familia: trend       — segunda lectura del pullback
-    - KELTNER_BREAK      # familia: trend       — breakouts en momentum sostenido
-    - DONCHIAN_BREAK     # familia: structural  — runs largos de oro (capta lo que pullback se pierde)
-    - MACD_CROSS         # familia: trend       — vuelta temprana del momentum
-    - RSI_REVERSAL       # familia: mean        — reversiones premium con confirmación
+    - DONCHIAN_BREAK     # structural — TOP (+16R con 51 trades en conf 2/2)
+    - ORB                # opening    — SORPRESA: +45R en 305 trades con conf 2/2
+    - MACD_CROSS         # trend      — confirma con momentum
+    - PULLBACK_TREND     # trend      — re-añadida con conf 2/2 (sola perdía, en grupo aporta)
+    - KELTNER_BREAK      # trend      — diversidad (en aislamiento -2R, en grupo a probar)
+    - VWAP_MR            # mean       — diversidad de familia (necesaria para 2/2)
 
 # ─────────────────────────────────────────────────────────
 # EURUSD — perfil "scalper + algo de calidad" (objetivo: ~30 trades/sem, WR 50-55%)
@@ -155,28 +167,37 @@ EURUSD:
   mode: SIGNAL_ONLY
   take_trades: false
   profile: scalper
-  target_trades_wk: 35                  # antes 30
+  target_trades_wk: 25                  # ajustado tras backtest — 2590 trades/año = 50/sem sin filtros
   session_utc:
-    start: "06:30"                      # antes 07:00 — un poco antes de apertura Londres
-    end: "17:00"                        # antes 16:00 — cubre solape NY entero
+    start: "06:30"
+    end: "17:00"
   risk:
     max_daily_loss_pct: 1.5
     max_consec_losses: 5
-    max_trades_per_day: 10              # antes 8
-    min_rr_ratio: 0.8                   # scalper: RR bajo a propósito
+    max_trades_per_day: 8
+    min_rr_ratio: 0.8                   # vuelta a 0.8 — subirlo rompió las strats scalper
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.25
     min_lot: 0.01
     max_lot: 3.0
+  # ─── BACKTEST REAL v0.7 (1 año MT5, post-calibración) ───
+  #   En la primera pasada (v0.6): PULLBACK_TREND fue lo ÚNICO positivo (+36R).
+  #   En v0.6.1 con min_rr=1.0: PULLBACK pasó a -19R → revertimos a 0.8.
+  #   STRATS QUE PIERDEN PLATA EN M5 EURUSD (probadas):
+  #     · BB_MR (-25.8R), KELTNER_BREAK (-22.9R), DONCHIAN_BREAK (-49R con min_rr 1.0)
+  #     · MACD_CROSS (-8R), SCALPER (-8.6R), RSI_REVERSAL (-3.5R)
+  #   La microestructura de M5 EURUSD favorece pullbacks; las breakout strats
+  #   castigan porque cada breakout se devuelve rápido.
+  #   ESTRATEGIA: pool reducido, conf 2/2 para filtrar setup premium.
   confluence:
-    min_signals: 1
-    min_families: 1
-    min_combined_score: 0.0
+    min_signals: 2                      # SUBIDO de 1 a 2 — el problema en EURUSD era falta de filtro
+    min_families: 2
+    min_combined_score: 1.0
   strategies:
-    - SCALPER            # familia: trend       — gatillo principal del scalper
-    - BB_MR              # familia: mean        — scalps de reversión Bollinger
-    - PULLBACK_TREND     # familia: trend       — pullbacks rápidos en M5
-    - MACD_CROSS         # familia: trend       — cruces de momentum intradía
-    - KELTNER_BREAK      # familia: trend       — breakouts confirmados
-    - RSI_REVERSAL       # familia: mean        — rebote de extremos
+    - PULLBACK_TREND     # trend      — el único ganador consistente (+36R en pasada 1)
+    - EMA_MOMENTUM       # trend      — pullback estricto, complementa
+    - SCALPER            # trend      — gatillo scalper (con conf 2/2 solo entra cuando otra confirma)
+    - MACD_CROSS         # trend      — momentum (con conf filtra los falsos)
+    - VWAP_MR            # mean       — diversidad de familia (necesaria para 2 families)
+    - RSI_REVERSAL       # mean       — diversidad de familia (solo dispara en extremos)

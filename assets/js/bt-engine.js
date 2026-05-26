@@ -293,28 +293,45 @@ const STRATEGIES = {
         return { direction, entry: c, sl, tp1, score, risk };
     },
 
-    /* ─── VWAP_MR ─── */
+    /* ─── VWAP_MR ───  Paridad 1:1 con strategies/vwap_mr.py */
     VWAP_MR(bar, prev, atr, df, idx, cfg) {
-        if (idx < 40) return null;
-        const { c, o, h, l, vwap, ema50, rsi } = bar;
-        if ([atr, vwap, ema50, rsi].some(v => v == null) || atr <= 0) return null;
+        if (idx < 50) return null;
+        const { c, o, h, l, vwap, ema9, ema50 } = bar;
+        if ([atr, vwap].some(v => v == null) || atr <= 0) return null;
 
-        const distAtr = (c - vwap) / atr;  // negativo = bajo VWAP (LONG candidate)
+        const dev = c - vwap;
+        const devAtr = dev / atr;
 
+        // Filtro anti-trend: si EMAs muy separadas, no opera MR
+        if (ema9 != null && ema50 != null) {
+            const emaSpread = Math.abs(ema9 - ema50) / atr;
+            if (emaSpread > 1.0) return null;
+        }
+
+        // Trigger: desviación >= 1.5 ATR del VWAP
         let direction = null, sl, risk;
-        // Long: precio MUY por debajo del VWAP, oversold + tendencia macro long
-        if (distAtr < -1.0 && rsi < 35 && c > ema50 && c > o) {
-            direction = 'LONG'; sl = l - 0.2 * atr; risk = c - sl;
-        } else if (distAtr > 1.0 && rsi > 65 && c < ema50 && c < o) {
-            direction = 'SHORT'; sl = h + 0.2 * atr; risk = sl - c;
+        if (devAtr >= 1.5) {
+            direction = 'SHORT';
+            sl = h + 0.2 * atr;
+            // Min SL = 0.5*ATR
+            if ((sl - c) < 0.5 * atr) sl = c + 0.5 * atr;
+            risk = sl - c;
+        } else if (devAtr <= -1.5) {
+            direction = 'LONG';
+            sl = l - 0.2 * atr;
+            if ((c - sl) < 0.5 * atr) sl = c - 0.5 * atr;
+            risk = c - sl;
         } else return null;
         if (risk <= 0) return null;
-        const rrEff = Math.max(1.4, cfg.minRR);
+
+        // TP1 = vuelta al VWAP (o respeta min RR)
+        const naturalTp = vwap;
+        const naturalRr = Math.abs(naturalTp - c) / risk;
+        const rrEff = Math.max(naturalRr, Math.max(1.5, cfg.minRR));
         const tp1 = direction === 'LONG' ? c + rrEff * risk : c - rrEff * risk;
 
-        const extremity = Math.min(Math.abs(distAtr) / 2.5, 1);
-        const rsiScore = Math.min(Math.abs(rsi - 50) / 30, 1);
-        const score = Math.max(0, Math.min(1, 0.35 + 0.35 * extremity + 0.20 * rsiScore));
+        const extremity = Math.min(Math.abs(devAtr) / 3.0, 1);
+        const score = Math.max(0, Math.min(1, 0.45 + 0.35 * extremity));
         return { direction, entry: c, sl, tp1, score, risk };
     },
 

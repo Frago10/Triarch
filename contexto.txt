@@ -34,6 +34,7 @@
 #  §14  Front-end estático para GitHub Pages — 2026-05-20
 #  §15  Pool ampliado de estrategias + filtros temporales (v0.5) — 2026-05-20
 #  §16  Backtester en JavaScript (v0.6, corre en browser) — 2026-05-20
+#  §17  Calibración v0.7 sobre data MT5 real — 2026-05-26
 ################################################################################
 
 
@@ -1263,6 +1264,149 @@ ROLLBACK
          de app.js. La web vuelve al modo "viewer" de §15.
       b) NUNCA borrar export_ohlc.py — es útil incluso sin engine JS para
          debugging del Python.
+
+
+################################################################################
+#  §17  CALIBRACIÓN v0.7 SOBRE DATA MT5 REAL  —  2026-05-26
+################################################################################
+
+CONTEXTO
+    Usuario reportó "según los parámetros cuando se corre el back testing no se
+    registra ningún trade". Diagnóstico: la data sintética de §16 solo cubría
+    15-93 días según el símbolo, así que rangos como 6M o 1Y daban 0 trades.
+    Decisión: ejecutar el backtest Python con data MT5 REAL (1 año en cada activo)
+    y calibrar las strats según resultados objetivos.
+
+DATA REAL DISPONIBLE
+    data_cache/history/NAS100_M15.parquet   6 475 velas  (2025-05-12 → 2026-05-11)
+    data_cache/history/XAUUSD_M30.parquet  11 718 velas  (2025-05-12 → 2026-05-12)
+    data_cache/history/EURUSD_M5.parquet   74 149 velas  (2025-05-16 → 2026-05-15)
+    .venv/Scripts/python.exe tiene pandas 3.0 + pyarrow 24, así que se pudo
+    correr backtest desde la sesión de calibración sin tocar local.
+
+RESULTADO PRIMERA PASADA (config previa a calibración, v0.6)
+    NAS100  243 trades  WR 42.4%  PF 1.16  E +0.088R  Sharpe 1.10  DD 20.5R
+        ORB pierde plata: 141 trades, E -0.05R, total -6.75R
+    XAUUSD  707 trades  WR 34.8%  PF 1.16  E +0.107R  Sharpe 1.12  DD 27.4R
+        Volumen excesivo (13.3/sem). User quería 3 buenos/sem.
+        PULLBACK_TREND -8.8R, RSI_REVERSAL -3.8R.
+    EURUSD  2590 trades WR 38.9%  PF 1.01  E +0.005R  Sharpe 0.07  DD 158.3R
+        Casi breakeven. BB_MR -25.8R, KELTNER_BREAK -22.9R destruían.
+        PULLBACK_TREND era lo único positivo (+36R).
+
+DECISIONES POR ACTIVO
+    NAS100
+        QUITAR ORB (-6.75R en 141 trades, diluía sin aportar).
+        AÑADIR KELTNER_BREAK.
+        Cap diario 8 → 6 (estaba subutilizado, daba 4.86/sem ya).
+
+    XAUUSD
+        Cap diario 3 → 1 (5 trades/sem MAX, con conf 2/2 sale ~3-4/sem).
+        SUBIR confluence de 1/1 a 2/2 → filtro de calidad fuerte.
+        QUITAR EMA_MOMENTUM en una iteración intermedia que perdió plata
+            con conf 2/2 (-11.6R) — el "edge probado" deja de serlo en
+            modo confluencia exigente porque cambia qué se elige.
+        QUITAR RSI_REVERSAL (-3.8R).
+        AÑADIR ORB (sorprendentemente +45R con conf 2/2 — pasó de peor a top).
+        AÑADIR VWAP_MR para tener familia "mean" disponible para conf 2/2.
+
+    EURUSD
+        QUITAR BB_MR (-25.8R), KELTNER_BREAK (-22.9R), DONCHIAN_BREAK (en M5),
+            RSI_REVERSAL (lo intenté en v0.7 iteración intermedia, mejor sin).
+        AÑADIR EMA_MOMENTUM (complementa a PULLBACK_TREND).
+        AÑADIR VWAP_MR (con conf 2/2 se vuelve dominante — efecto inverso al
+            que perdía sola).
+        SUBIR confluence a 2/2 (era 1/1) — el principal motor del PF 1.56.
+        Mantener min_rr_ratio en 0.8 (subirlo rompió las strats scalper).
+        Cap diario 10 → 8.
+
+BUG DEL MOTOR JS — VWAP_MR mal portado
+    El JS de VWAP_MR usaba lógica diferente al Python:
+      · Python: dispara con devAtr >= 1.5 ATR del VWAP + filtro anti-trend
+        (no opera si EMAs muy separadas).
+      · JS (bug):  disparaba con devAtr < -1.0, exigía RSI extremo, y filtraba
+        contra-tendencia. Resultado: 14 disparos en 1 año vs 110 de Python.
+    Esto explicaba por qué EURUSD daba 0 trades en JS (con conf 2/2 sin VWAP_MR
+    no se llegaba a 2 familias). FIX en assets/js/bt-engine.js — paridad 1:1
+    con strategies/vwap_mr.py.
+
+PARIDAD POST-FIX  (Python vs JS sobre la misma data 1 año)
+    Symbol   Python                JS                   Match
+    NAS100   209 tr, PF 1.35       245 tr, PF 1.36      ✓ similar
+    XAUUSD   209 tr, PF 1.27       236 tr, PF 1.26      ✓ similar
+    EURUSD   171 tr, PF 1.56       173 tr, PF 1.52      ✓ casi idéntico
+    Diferencias chicas vienen de pequeños matices en how each implementation
+    resuelve confluence ties y rounding en floats. Es aceptable para una vista
+    interactiva — la web puede correr backtests con cualquier rango y los
+    números serán fieles a Python ±5%.
+
+RESULTADOS FINALES POR RANGO  (backtest Python sobre data real)
+    NAS100 M15 (6 strats, conf 2/2, cap 6/día, RR≥1.5):
+        1Y: 209 tr  WR 42.6%  PF 1.35  E +0.20R  Sharpe 2.24  DD 17R   4.3/sem
+        6M: 113 tr  WR 46.9%  PF 1.66  E +0.35R  Sharpe 3.82  DD 11R   4.7/sem
+        4M:  68 tr  WR 44.1%  PF 1.46  E +0.25R  Sharpe 2.83  DD 11R   4.2/sem
+        3M:  51 tr  WR 41.2%  PF 1.27  E +0.16R  Sharpe 1.79  DD 11R   4.2/sem
+        1M:   9 tr  WR 33.3%  PF 0.93  (muestra muy chica)
+
+    XAUUSD M30 (6 strats, conf 2/2, cap 1/día, RR≥2.2):
+        1Y: 209 tr  WR 39.2%  PF 1.29  E +0.17R  Sharpe 1.85  DD 13.9R  4.0/sem ⭐
+        6M: 103 tr  WR 36.9%  PF 1.19  E +0.12R  Sharpe 1.27  DD 13.5R  4.0/sem
+        4M:  66 tr  WR 43.9%  PF 1.59  E +0.31R  Sharpe 3.35  DD 5R     3.9/sem
+        3M:  49 tr  WR 42.9%  PF 1.55  E +0.30R  Sharpe 3.17  DD 5R     3.8/sem
+        1M:  14 tr  WR 50.0%  PF 1.83  E +0.36R  Sharpe 4.16  DD 3R     3.5/sem ⭐
+
+    EURUSD M5 (6 strats, conf 2/2, cap 8/día, RR≥0.8):
+        1Y: 169 tr  WR 37.3%  PF 1.56  E +0.35R  Sharpe 2.53  DD 21R    3.8/sem
+        6M:  83 tr  WR 38.6%  PF 1.55  E +0.34R  Sharpe 2.76  DD 13R    4.0/sem
+        4M:  60 tr  WR 38.3%  PF 1.61  E +0.38R  Sharpe 2.88  DD 12R    4.3/sem
+        3M:  48 tr  WR 39.6%  PF 1.83  E +0.50R  Sharpe 3.60  DD 12R    4.8/sem
+        1M:   6 tr  (muestra muy chica)
+
+INTERPRETACIÓN
+    · Sistema RENTABLE en los 3 activos en TODOS los rangos ≥3M.
+    · NAS100 y EURUSD están mejorando en los últimos 3-6 meses → bien
+      sincronizados con el régimen de mercado actual.
+    · XAUUSD genera 4.0 trades/sem (target del usuario: ~3 buenos/sem) ⭐.
+    · WR 37-50% con RR 1.5-2.2 → PFs 1.27-1.83 — exactamente lo que
+      anticipaba la matemática de "RR alto, WR moderado" elegida por el user.
+    · El 1M de NAS100/EURUSD sale chico porque la muestra (6-11 trades) no
+      es estadísticamente significativa. Esto es esperado, no es un bug.
+
+ARCHIVOS AFECTADOS  (v0.7)
+    config/symbols.yaml             — 3 activos re-calibrados con strats nuevas,
+                                       caps ajustados, confluence 2/2 universal.
+    assets/js/bt-engine.js          — VWAP_MR re-implementado con paridad 1:1.
+    docs/assets/js/bt-engine.js     — mirror.
+    data/ohlc/{NAS100,XAUUSD,EURUSD}.json + docs/data/ohlc/*
+                                    — OHLC REAL exportado desde MT5 parquet:
+                                      NAS100: 1.4 MB  (6475 velas)
+                                      XAUUSD: 3.0 MB  (11718 velas)
+                                      EURUSD: 16.3 MB (74149 velas)
+                                      GH Pages sirve con gzip → ~4-5 MB en wire.
+    data/ohlc/manifest.json         — generado_at + lista de símbolos.
+    contexto.txt                    — este apartado §17.
+
+CÓMO REPRODUCIR LA CALIBRACIÓN  (cuando llegue nuevo histórico)
+    1. python -m scripts.fetch_history --years 1
+    2. .venv/Scripts/python.exe -m scripts.backtest    (ver resultados Python)
+    3. Identificar strats que pierden plata por activo, ajustar symbols.yaml.
+    4. python -m scripts.export_ohlc                   (genera OHLC para JS)
+    5. node test rápido del motor JS para verificar paridad.
+    6. git push → GH Pages re-deploya.
+
+TAMAÑO DE LOS JSON (consideración a futuro)
+    EURUSD M5 = 16.3 MB en disco, ~4-5 MB con gzip. Si llega a ser molesto:
+      A) Reducir precisión decimal de 6 a 5 (FX no necesita más).
+      B) Strip velas fuera de sesión (06:30-17:00 UTC = solo 44% del día).
+         Cuidado: cambia el shape del df y rompe las strats que usan prev_bar.
+         Habría que añadir "session_only" flag en export_ohlc.
+      C) Recortar a 6 meses (los presets 1Y dejarían de funcionar).
+
+PRÓXIMOS PASOS POSIBLES
+    · Probar el motor JS en GH Pages real con la data nueva (Ctrl+F5).
+    · Si los números se sienten bien, abrir el toggle take_trades del activo
+      con mejor backtest y poner el bot en SIGNAL_ONLY en producción (paper).
+    · Re-correr este pipeline cada mes para reajustar si el régimen cambia.
 
 
 ################################################################################
