@@ -100,8 +100,8 @@ XAUUSD:
   description: Gold spot (oro) — quality profile, pocos trades, alta calidad
   family: commodity
   timeframe: M30
-  mode: SIGNAL_ONLY
-  take_trades: false
+  mode: AUTO                     # v0.8 — ÚNICO activo en AUTO (ejecuta órdenes reales en demo)
+  take_trades: true             # default ON; el runtime.yaml puede apagarlo desde el dashboard
   profile: quality
   target_trades_wk: 3
   session_utc:

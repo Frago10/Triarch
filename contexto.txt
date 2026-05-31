@@ -35,6 +35,7 @@
 #  §15  Pool ampliado de estrategias + filtros temporales (v0.5) — 2026-05-20
 #  §16  Backtester en JavaScript (v0.6, corre en browser) — 2026-05-20
 #  §17  Calibración v0.7 sobre data MT5 real — 2026-05-26
+#  §18  Ejecución real de órdenes + backtest robusto (v0.8) — 2026-05-31
 ################################################################################
 
 
@@ -1407,6 +1408,182 @@ PRÓXIMOS PASOS POSIBLES
     · Si los números se sienten bien, abrir el toggle take_trades del activo
       con mejor backtest y poner el bot en SIGNAL_ONLY en producción (paper).
     · Re-correr este pipeline cada mes para reajustar si el régimen cambia.
+
+
+################################################################################
+#  §18  EJECUCIÓN REAL DE ÓRDENES + BACKTEST ROBUSTO  (v0.8)  —  2026-05-31
+################################################################################
+
+CONTEXTO / PEDIDO DEL USUARIO
+    Dos problemas reportados:
+      1. "El backtest no devuelve data, como si los trades no se hubieran
+          tomado del todo" → necesita una guía clara para iterar.
+      2. "Que el bot YA pueda poner órdenes en la cuenta demo — que no solo sea
+          'order place' sino que GENUINAMENTE las tome" → para probar el
+          domingo/lunes a la apertura del mercado.
+
+────────────────────────────────────────────────────────────────────────
+PARTE A — EJECUCIÓN REAL DE ÓRDENES (lo crítico para el lunes)
+────────────────────────────────────────────────────────────────────────
+
+CAUSA RAÍZ #1 — EL BOT NUNCA COLOCABA ÓRDENES (config)
+    TODOS los activos estaban en `mode: SIGNAL_ONLY` + `take_trades: false`
+    (tanto en symbols.yaml como en runtime.yaml). El orchestrator, con
+    take_trades=false, FUERZA SIGNAL_ONLY → jamás llama al AutoExecutor.
+    Por eso solo se veían señales, nunca órdenes.
+
+    FIX: el usuario eligió poner SOLO XAUUSD en AUTO (su mejor backtest,
+    ~4 trades/sem, el más estable). Cambios:
+      · config/symbols.yaml  → XAUUSD: mode: AUTO, take_trades: true
+      · config/runtime.yaml  → XAUUSD: true  (el override en vivo manda)
+      · NAS100 y EURUSD quedan en SIGNAL_ONLY (solo señales, no ejecutan).
+    Verificado: modo efectivo de XAUUSD = AUTO; de los otros 2 = SIGNAL_ONLY.
+
+CAUSA RAÍZ #2 — FILLING MODE HARDCODEADO (el broker rechazaba la orden)
+    executor/auto.py mandaba SIEMPRE `type_filling=ORDER_FILLING_IOC`.
+    MetaQuotes-Demo (y muchos brokers) RECHAZAN la orden con retcode 10030
+    "Unsupported filling mode" si el símbolo no soporta IOC. Resultado: la
+    orden "se mandaba" pero el broker la rechazaba → parecía que no se tomaba.
+
+    FIX en executor/auto.py (reescrito):
+      · Lee el bitmask `symbol_info.filling_mode` (FOK=1, IOC=2) y arma la lista
+        de modos a probar en orden de preferencia, con RETURN como último recurso.
+      · order_check() (simulación) ANTES de order_send() para detectar el modo
+        correcto sin gastar una orden.
+      · Si un filling da 10030 → reintenta con el siguiente automáticamente.
+      · Para errores que NO son de filling (10016 invalid stops, 10018 market
+        closed, 10019 no money, 10027 autotrading disabled) → no insiste, devuelve
+        mensaje claro.
+
+CAUSA RAÍZ #3 — SL/TP SIN NORMALIZAR (retcode 10016 "Invalid stops")
+    Los SL/TP venían con los decimales del cálculo (no los del símbolo) y sin
+    respetar la distancia mínima de stops del broker (`trade_stops_level`).
+    Muchos brokers rechazan SL/TP demasiado cerca del precio o con precisión
+    incorrecta.
+
+    FIX: AutoExecutor._normalize_levels() redondea price/SL/TP a `digits` del
+    símbolo y aleja SL/TP si están más cerca que `stops_level * point`.
+
+OTROS FIXES DE EJECUCIÓN
+    · MAGIC_NUMBERS pasó de 3 a 10 estrategias (una por cada strat del pool).
+      ANTES: las strats nuevas (PULLBACK_TREND, DONCHIAN_BREAK, etc.) usaban el
+      fallback magic 100000, y el TradeMonitor (que filtra por magic) NUNCA
+      detectaba sus cierres → trades quedaban "abiertos" para siempre en la DB.
+      AHORA trade_monitor usa set(MAGIC_NUMBERS.values()) | {MAGIC_FALLBACK}.
+    · Verificación post-ejecución: tras order_send se confirma con
+      positions_get() si la posición REALMENTE se abrió → status FILLED vs PLACED.
+    · data_layer/mt5_client.py: SymbolInfo ahora expone point, trade_stops_level,
+      trade_freeze_level, filling_mode, trade_mode, visible (necesarios para todo
+      lo anterior).
+    · deviation subido de 20 a 30 puntos (índices/oro necesitan más holgura).
+
+NUEVO SCRIPT DE PRE-VUELO — scripts/check_trading.py
+    Verifica TODO lo necesario para que las órdenes se ejecuten, ANTES de la
+    apertura del mercado:
+      · Algo Trading habilitado en el terminal.
+      · Por activo: trade_mode (¿FULL?), filling_mode, stops_level, spread,
+        y qué filling usará el bot.
+      · order_check (simulación, NO envía) de una orden mínima → confirma que
+        el broker la aceptaría (o reporta "mercado cerrado" si es finde).
+      · Con --live-test: coloca una orden REAL de lote mínimo y la CIERRA
+        enseguida → prueba el ciclo completo end-to-end en demo.
+    Uso:
+        python -m scripts.check_trading                  # diagnóstico seguro
+        python -m scripts.check_trading --live-test      # coloca+cierra 1 orden
+
+PLAN PARA EL DOMINGO/LUNES (apertura de mercado)
+    1. Abrir MT5, verificar "Algo Trading" ON (botón verde en la toolbar).
+    2. python -m scripts.diagnose_mt5        → confirma conexión + login.
+    3. python -m scripts.check_trading       → confirma capacidades de XAUUSD.
+       (En finde dará "mercado cerrado" en order_check — es NORMAL.)
+    4. Cuando el oro abra (domingo ~22:00 UTC / 23:00 CET):
+         python -m scripts.check_trading --live-test --symbol XAUUSD
+       → debe colocar y cerrar 1 orden real. Si sale "✓ ORDEN EJECUTADA", listo.
+    5. Arrancar el bot:  python -m scripts.serve --tick 30 --port 8765
+       o  python -m scripts.run_live --tick 30
+    6. El bot detectará setups de XAUUSD (M30) en sesión 08:00-20:00 UTC,
+       validará risk (cap 1 trade/día, RR≥2.2) y colocará la orden con SL/TP.
+    NOTA: oro es M30 → evalúa cada 30 min; con cap 1/día verás como mucho 1
+    orden al día. Paciencia: es el perfil "quality".
+
+CÓMO PARAR TODO
+    · Apagar XAUUSD desde el dashboard (toggle "Trades reales" → OFF), o
+    · TRIARCH_KILL=1 en .env y reiniciar, o
+    · runtime.yaml → XAUUSD: false.
+
+────────────────────────────────────────────────────────────────────────
+PARTE B — BACKTEST QUE "NO DEVOLVÍA DATA"
+────────────────────────────────────────────────────────────────────────
+
+CAUSA RAÍZ — PRESETS ANCLADOS AL RELOJ DEL NAVEGADOR, NO A LA DATA
+    Los presets (1M/3M/6M/1Y) y el rango por defecto se calculaban como
+    "hoy − N días". La data MT5 va de 2025-05-12 a 2026-05-15. Si el reloj del
+    navegador (o del sistema) está en una fecha POSTERIOR al fin de la data,
+    "1M" = [hoy−30d, hoy] cae COMPLETAMENTE fuera del histórico → 0 trades.
+    El motor estaba bien; el RANGO pedido estaba vacío.
+
+FIX (web — assets/js/app.js)
+    · El manifest (data/ohlc/manifest.json) ahora incluye "ranges" con el
+      from/to (unix ms) de cada activo. La web calcula DATA_FROM / DATA_TO
+      (span global real) al cargar.
+    · Los presets y el rango por defecto se anclan a DATA_TO (fin de la data),
+      NO al reloj del navegador. setBtRange() además clampa al span real.
+    · AUTO-RUN: el backtest se corre solo al abrir la pestaña (1 vez) → el
+      usuario ve data inmediatamente sin clicar nada.
+    · Cambiar de activo o tocar un preset re-corre automáticamente.
+    · Cache-busting: fetch del manifest con ?v=Date.now(), y de los OHLC con
+      ?v=<generated_at> → un re-deploy invalida la caché del navegador (esto
+      también explicaba parte del "no actualiza": el browser servía JSON viejo).
+    · Diagnóstico claro: si 0 trades porque el rango cae fuera de la data, lo
+      DICE explícitamente con el rango disponible.
+
+FIX (Streamlit — dashboard/app.py)
+    · _data_span() (cacheado) lee el min/max de los parquet.
+    · El rango por defecto y los presets se anclan al fin de la data (no a hoy).
+    · Muestra "📅 Data disponible: X → Y" arriba de los filtros.
+
+RESULTADOS VERIFICADOS  (motor JS, presets anclados al fin de data)
+    Preset 1M (2026-04-15→05-15):  NAS100 7tr  XAU 17tr PF3.36  EUR 8tr
+    Preset 3M (2026-02-14→05-15):  NAS100 55tr PF1.31  XAU 53tr PF1.75  EUR 50tr PF1.69
+    Preset 6M (2025-11-16→05-15):  NAS100 125tr PF1.68  XAU 110tr PF1.43  EUR 86tr PF1.48
+    Preset 1Y (2025-05-15→05-15):  NAS100 243tr PF1.38  XAU 233tr PF1.29  EUR 173tr PF1.52
+    TODOS devuelven trades. El "0 trades" era exclusivamente el bug del rango.
+
+────────────────────────────────────────────────────────────────────────
+ARCHIVOS TOCADOS (v0.8)
+────────────────────────────────────────────────────────────────────────
+    executor/auto.py              — reescrito: filling adaptivo, normalize SL/TP,
+                                    10 magics, order_check, verify_filled.
+    executor/trade_monitor.py     — usa los 10 magics + fallback.
+    data_layer/mt5_client.py      — SymbolInfo + point/stops_level/filling_mode/
+                                    trade_mode/freeze_level/visible.
+    config/symbols.yaml           — XAUUSD → mode AUTO + take_trades true.
+    config/runtime.yaml           — XAUUSD → true.
+    scripts/check_trading.py      — NUEVO: pre-vuelo de trading + live-test.
+    scripts/export_ohlc.py        — manifest enriquecido con "ranges" por activo.
+    assets/js/app.js (+docs)      — presets anclados a data, auto-run, cache-bust,
+                                    diagnóstico de 0-trades.
+    dashboard/app.py              — _data_span(), presets anclados a data.
+    index.html (+docs)            — splash "10 estrategias" (era "5").
+    data/ohlc/*.json + manifest   — regenerados con ranges.
+    .claude/launch.json           — NUEVO (config de preview local, opcional).
+
+VERIFICACIÓN
+    · pytest: 23/23 pasan.
+    · Imports de orchestrator/auto/trade_monitor/check_trading/export_ohlc: OK.
+    · HTTP serving local: index, app.js, bt-engine.js, manifest, OHLC → 200.
+    · Motor JS sobre data real: trades en todos los rangos.
+    · check_trading.py: NO se pudo correr aquí (requiere MT5 + Windows con
+      terminal abierto). El usuario debe correrlo en su máquina — es el paso
+      de validación del lunes.
+
+PENDIENTE / PRÓXIMOS PASOS
+    · [USUARIO] Correr scripts.check_trading el domingo noche (con --live-test)
+      para confirmar ejecución real antes de dejar el bot corriendo.
+    · Si XAUUSD funciona bien unos días, considerar añadir NAS100/EURUSD a AUTO.
+    · El SL/TP a mercado usa el filled price del broker; el TradeMonitor ya
+      detecta SL/TP/manual y registra el PnL real en la DB → revisar en el
+      dashboard pestaña "Decisiones" tras los primeros trades.
 
 
 ################################################################################

@@ -1,8 +1,55 @@
 {
-  "generated_at": "2026-05-26T21:26:39+00:00",
+  "generated_at": "2026-05-31T14:57:45+00:00",
   "symbols": [
     "NAS100",
     "XAUUSD",
     "EURUSD"
-  ]
+  ],
+  "ranges": {
+    "NAS100": {
+      "from": 1747067400000,
+      "to": 1778540400000,
+      "rows": 6475,
+      "timeframe": "M15",
+      "strategies": [
+        "PULLBACK_TREND",
+        "DONCHIAN_BREAK",
+        "KELTNER_BREAK",
+        "MACD_CROSS",
+        "EMA_MOMENTUM",
+        "VWAP_MR"
+      ],
+      "mode": "SIGNAL_ONLY"
+    },
+    "XAUUSD": {
+      "from": 1747058400000,
+      "to": 1778592600000,
+      "rows": 11718,
+      "timeframe": "M30",
+      "strategies": [
+        "DONCHIAN_BREAK",
+        "ORB",
+        "MACD_CROSS",
+        "PULLBACK_TREND",
+        "KELTNER_BREAK",
+        "VWAP_MR"
+      ],
+      "mode": "AUTO"
+    },
+    "EURUSD": {
+      "from": 1747367700000,
+      "to": 1778889300000,
+      "rows": 74149,
+      "timeframe": "M5",
+      "strategies": [
+        "PULLBACK_TREND",
+        "EMA_MOMENTUM",
+        "SCALPER",
+        "MACD_CROSS",
+        "VWAP_MR",
+        "RSI_REVERSAL"
+      ],
+      "mode": "SIGNAL_ONLY"
+    }
+  }
 }

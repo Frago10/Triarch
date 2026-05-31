@@ -178,7 +178,16 @@ def export_symbol(name: str, years: int | None = None) -> Path | None:
     logger.info(
         f"   ✔  {out_path}  ·  {len(rows)} velas  ·  {size_mb:.2f} MB"
     )
-    return out_path
+    return {
+        "path": out_path,
+        "symbol": cfg.name,
+        "timeframe": cfg.timeframe,
+        "from": payload["from"],
+        "to": payload["to"],
+        "rows": len(rows),
+        "strategies": list(cfg.strategies),
+        "mode": cfg.mode.value,
+    }
 
 
 def main() -> int:
@@ -202,11 +211,24 @@ def main() -> int:
         if out:
             written.append(out)
 
-    # Manifest — la web lo lee para saber qué activos están disponibles
+    # Manifest — la web lo lee para saber qué activos están disponibles Y el
+    # rango temporal de cada uno (para fijar los date-pickers al span real y
+    # evitar el "0 trades" cuando el rango cae fuera de la data).
     if written:
         manifest = {
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "symbols": [p.stem for p in written],
+            "symbols": [w["symbol"] for w in written],
+            "ranges": {
+                w["symbol"]: {
+                    "from": w["from"],          # unix ms
+                    "to": w["to"],              # unix ms
+                    "rows": w["rows"],
+                    "timeframe": w["timeframe"],
+                    "strategies": w["strategies"],
+                    "mode": w["mode"],
+                }
+                for w in written
+            },
         }
         man_path = DEFAULT_OUT_DIR / "manifest.json"
         man_path.write_text(

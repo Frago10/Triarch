@@ -29,7 +29,7 @@ from loguru import logger
 
 from audit.store import AuditStore
 from data_layer.mt5_client import MT5_AVAILABLE, MT5Client
-from executor.auto import MAGIC_NUMBERS
+from executor.auto import MAGIC_FALLBACK, MAGIC_NUMBERS
 from risk.manager import RiskManager
 from signals.schema import Signal, SignalStatus
 
@@ -53,8 +53,8 @@ class TradeMonitor:
         self.mt5_client = mt5_client
         self.store = store
         self.risk = risk
-        # Magic numbers que el bot usa — invertido por estrategia
-        self._our_magics = set(MAGIC_NUMBERS.values())
+        # Magic numbers que el bot usa — todas las estrategias + el fallback.
+        self._our_magics = set(MAGIC_NUMBERS.values()) | {MAGIC_FALLBACK}
 
     def poll(self) -> None:
         """Una pasada del monitor: refresh tickets abiertos + detecta cierres."""

@@ -84,6 +84,12 @@ class SymbolInfo:
     volume_min: float
     volume_max: float
     volume_step: float
+    point: float = 0.0
+    trade_stops_level: int = 0          # distancia mínima SL/TP en points
+    trade_freeze_level: int = 0         # distancia de "freeze" en points
+    filling_mode: int = 0               # bitmask SYMBOL_FILLING_FOK(1)/IOC(2)
+    trade_mode: int = 0                 # 0=disabled, 4=full (SYMBOL_TRADE_MODE_FULL)
+    visible: bool = True
 
 
 class MT5Client:
@@ -229,6 +235,12 @@ class MT5Client:
             volume_min=info.volume_min,
             volume_max=info.volume_max,
             volume_step=info.volume_step,
+            point=getattr(info, "point", 0.0),
+            trade_stops_level=getattr(info, "trade_stops_level", 0),
+            trade_freeze_level=getattr(info, "trade_freeze_level", 0),
+            filling_mode=getattr(info, "filling_mode", 0),
+            trade_mode=getattr(info, "trade_mode", 0),
+            visible=getattr(info, "visible", True),
         )
 
     # ─────────────────────────────────────────────────────

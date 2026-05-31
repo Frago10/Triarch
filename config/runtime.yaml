@@ -1,4 +1,4 @@
 take_trades:
   EURUSD: false
   NAS100: false
-  XAUUSD: false
+  XAUUSD: true

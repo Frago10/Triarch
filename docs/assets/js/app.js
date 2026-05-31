@@ -549,32 +549,53 @@ function recomputeMetricsFromLog(original, fromTs, toTs) {
 
 /* ═══════════════ Backtest interactivo (corre en el browser) ═══════════════ */
 const OHLC_CACHE = {};     // {symbol: payload}
-let MANIFEST = null;       // {generated_at, symbols: [...]}
+let MANIFEST = null;       // {generated_at, symbols, ranges}
+let DATA_FROM = null;      // unix ms — inicio global de la data disponible
+let DATA_TO = null;        // unix ms — fin global de la data disponible
+let BT_AUTORAN = false;    // para auto-correr una sola vez
 
 async function loadManifest() {
     if (MANIFEST !== null) return MANIFEST;
-    for (const url of ['./data/ohlc/manifest.json']) {
-        try {
-            const res = await fetch(url, { cache: 'no-store' });
-            if (res.ok) { MANIFEST = await res.json(); return MANIFEST; }
-        } catch (e) { /* fall through */ }
-    }
+    try {
+        const res = await fetch('./data/ohlc/manifest.json?v=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+            MANIFEST = await res.json();
+            // Calcular span global de la data
+            const ranges = MANIFEST.ranges || {};
+            const froms = Object.values(ranges).map(r => r.from).filter(Boolean);
+            const tos = Object.values(ranges).map(r => r.to).filter(Boolean);
+            DATA_FROM = froms.length ? Math.min(...froms) : null;
+            DATA_TO = tos.length ? Math.max(...tos) : null;
+            return MANIFEST;
+        }
+    } catch (e) { /* fall through */ }
     MANIFEST = { symbols: [] };
     return MANIFEST;
 }
 
 async function loadOhlc(symbol) {
     if (OHLC_CACHE[symbol]) return OHLC_CACHE[symbol];
-    const url = `./data/ohlc/${symbol}.json`;
-    const res = await fetch(url, { cache: 'force-cache' });
+    // Cache-bust con el timestamp del manifest → un re-deploy invalida la caché.
+    const v = (MANIFEST && MANIFEST.generated_at) ? encodeURIComponent(MANIFEST.generated_at) : Date.now();
+    const url = `./data/ohlc/${symbol}.json?v=${v}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`No se pudo cargar ${url} (HTTP ${res.status})`);
     const payload = await res.json();
     OHLC_CACHE[symbol] = payload;
     return payload;
 }
 
+function isoDay(ms) { return new Date(ms).toISOString().slice(0, 10); }
+
+/* Fija los date-pickers a un rango, clamped al span real de la data. */
+function setBtRange(fromMs, toMs) {
+    if (DATA_FROM != null) fromMs = Math.max(fromMs, DATA_FROM);
+    if (DATA_TO != null) toMs = Math.min(toMs, DATA_TO);
+    $('#bt-from').value = isoDay(fromMs);
+    $('#bt-to').value = isoDay(toMs);
+}
+
 function renderBacktest(data) {
-    /* Llenar selector de activos desde el manifest si está; si no, desde state.json */
     const sel = $('#bt-symbol-filter');
     const symsFromState = Object.keys(data.symbols || {});
 
@@ -582,60 +603,68 @@ function renderBacktest(data) {
         const available = man.symbols && man.symbols.length ? man.symbols : symsFromState;
         sel.innerHTML = '<option value="">(todos)</option>' +
             available.map(s => `<option>${s}</option>`).join('');
+
         if (!man.symbols || !man.symbols.length) {
             $('#bt-status').innerHTML =
                 '⚠ No se encontró <code>data/ohlc/manifest.json</code>. ' +
-                'Corre <code>python -m scripts.export_ohlc</code> en local y haz git push ' +
-                'para habilitar backtesting interactivo.';
-        } else {
-            $('#bt-status').innerHTML =
-                `<span style="color:#86efac">●</span> OHLC disponible para: ` +
-                `<b>${man.symbols.join(', ')}</b>. Generado: ${friendlyDate(man.generated_at)}`;
+                'Corre <code>python -m scripts.export_ohlc</code> en local y haz git push.';
+            return;
+        }
+
+        // Mensaje de estado con el span real de la data
+        const spanTxt = (DATA_FROM && DATA_TO)
+            ? ` · data ${isoDay(DATA_FROM)} → ${isoDay(DATA_TO)}`
+            : '';
+        $('#bt-status').innerHTML =
+            `<span style="color:#86efac">●</span> OHLC: <b>${man.symbols.join(', ')}</b>${spanTxt}`;
+
+        // ─── Fijar el rango por defecto al ÚLTIMO AÑO de la data (no del navegador) ───
+        if (DATA_TO != null) {
+            setBtRange(DATA_TO - 365 * 86400e3, DATA_TO);
+        }
+
+        // ─── Auto-correr una sola vez para que el usuario vea data sin clicar ───
+        if (!BT_AUTORAN) {
+            BT_AUTORAN = true;
+            runInteractiveBacktest(data);
         }
     });
 
-    /* Listeners de los date / select / presets */
-    const today = new Date();
-    if (!$('#bt-from').value) $('#bt-from').value =
-        new Date(today.getTime() - 365 * 86400e3).toISOString().slice(0, 10);
-    if (!$('#bt-to').value) $('#bt-to').value = today.toISOString().slice(0, 10);
-
+    /* Reset → vuelve al último año de la data */
     $('#bt-reset').onclick = () => {
-        $('#bt-from').value = new Date(today.getTime() - 365 * 86400e3).toISOString().slice(0, 10);
-        $('#bt-to').value = today.toISOString().slice(0, 10);
+        if (DATA_TO != null) setBtRange(DATA_TO - 365 * 86400e3, DATA_TO);
         $('#bt-symbol-filter').value = '';
+        runInteractiveBacktest(data);
     };
 
+    /* Presets — RELATIVOS AL FIN DE LA DATA, no al reloj del navegador.
+       Esto era la causa raíz del "0 trades": si el navegador está en una fecha
+       posterior al fin de la data, "1M/3M" caían fuera del histórico. */
     $$('#bt-preset-row [data-bt-preset]').forEach(btn => {
         btn.onclick = () => {
+            const anchor = DATA_TO != null ? DATA_TO : Date.now();
             const preset = btn.dataset.btPreset;
-            const now = new Date();
             let from;
-            if (preset === '1m') from = new Date(now.getTime() - 30 * 86400e3);
-            else if (preset === '3m') from = new Date(now.getTime() - 90 * 86400e3);
-            else if (preset === '6m') from = new Date(now.getTime() - 180 * 86400e3);
-            else if (preset === 'ytd') from = new Date(now.getFullYear(), 0, 1);
-            else if (preset === '1y') from = new Date(now.getTime() - 365 * 86400e3);
-            else if (preset === 'all') from = new Date(2000, 0, 1);
-            if (from) $('#bt-from').value = from.toISOString().slice(0, 10);
-            $('#bt-to').value = now.toISOString().slice(0, 10);
+            if (preset === '1m') from = anchor - 30 * 86400e3;
+            else if (preset === '3m') from = anchor - 90 * 86400e3;
+            else if (preset === '6m') from = anchor - 180 * 86400e3;
+            else if (preset === 'ytd') from = new Date(new Date(anchor).getUTCFullYear(), 0, 1).getTime();
+            else if (preset === '1y') from = anchor - 365 * 86400e3;
+            else if (preset === 'all') from = DATA_FROM != null ? DATA_FROM : anchor - 730 * 86400e3;
+            setBtRange(from, anchor);
+            runInteractiveBacktest(data);
         };
     });
 
-    /* Botón principal: corre el backtest */
+    /* Botón principal + cambio de activo re-corre */
     $('#bt-run').onclick = () => runInteractiveBacktest(data);
+    sel.addEventListener('change', () => runInteractiveBacktest(data));
 
-    /* Pinta resultados precargados desde state.json si hay alguno */
-    const preloaded = data.backtest_results || [];
-    if (preloaded.length) {
-        drawBacktestResults(preloaded);
-    } else {
-        $('#bt-results').innerHTML = `<div class="empty">
-            <div class="emoji">📊</div>
-            <div>Configura filtros y presiona <b>▶ Correr backtest</b>.</div>
-            <div class="mini">El motor corre en tu navegador sobre <code>data/ohlc/&lt;symbol&gt;.json</code>.</div>
-        </div>`;
-    }
+    $('#bt-results').innerHTML = `<div class="empty">
+        <div class="emoji">⏳</div>
+        <div>Cargando histórico y corriendo backtest…</div>
+        <div class="mini">El motor corre en tu navegador sobre <code>data/ohlc/&lt;symbol&gt;.json</code>.</div>
+    </div>`;
 }
 
 async function runInteractiveBacktest(data) {
@@ -654,7 +683,9 @@ async function runInteractiveBacktest(data) {
 
     const btn = $('#bt-run');
     btn.disabled = true;
-    btn.textContent = '⏳ Cargando OHLC…';
+    btn.textContent = '⏳ Corriendo…';
+    $('#bt-results').innerHTML = `<div class="empty"><div class="emoji">⏳</div>
+        <div>Corriendo backtest…</div></div>`;
 
     const results = [];
     for (const sym of candidates) {
@@ -662,8 +693,7 @@ async function runInteractiveBacktest(data) {
             $('#bt-status').textContent = `Cargando ${sym}…`;
             const ohlc = await loadOhlc(sym);
             $('#bt-status').textContent = `Backtest ${sym} (${ohlc.rows.length} velas)…`;
-            // ceder al browser para que repinte el status
-            await new Promise(r => setTimeout(r, 10));
+            await new Promise(r => setTimeout(r, 10));  // repintar status
             const t0 = performance.now();
             const result = window.TriarchBT.runBacktest({
                 ohlc,
@@ -676,6 +706,14 @@ async function runInteractiveBacktest(data) {
             const ms = Math.round(performance.now() - t0);
             result.symbol = sym;
             result._elapsed_ms = ms;
+            // Diagnóstico claro cuando 0 trades: ¿el rango cae fuera de la data?
+            if ((result.trades || 0) === 0) {
+                const r = (man.ranges || {})[sym];
+                if (r && fromTs && toTs && (toTs < r.from || fromTs > r.to)) {
+                    result.note = `Rango fuera de la data de ${sym} ` +
+                        `(disponible ${isoDay(r.from)} → ${isoDay(r.to)}).`;
+                }
+            }
             results.push(result);
         } catch (e) {
             results.push({ symbol: sym, error: e.message || String(e) });
@@ -686,9 +724,10 @@ async function runInteractiveBacktest(data) {
     btn.textContent = '▶ Correr backtest';
     const totalTrades = results.reduce((s, r) => s + (r.trades || 0), 0);
     const totalMs = results.reduce((s, r) => s + (r._elapsed_ms || 0), 0);
+    const rangeTxt = (fromVal && toVal) ? ` · ${fromVal} → ${toVal}` : '';
     $('#bt-status').innerHTML =
-        `<span style="color:#86efac">●</span> Backtest completado: ` +
-        `<b>${totalTrades} trades</b> sobre <b>${results.length}</b> activos · <b>${totalMs} ms</b>`;
+        `<span style="color:#86efac">●</span> ` +
+        `<b>${totalTrades} trades</b> · ${results.length} activo(s) · ${totalMs} ms${rangeTxt}`;
 
     drawBacktestResults(results);
 }

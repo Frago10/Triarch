@@ -1026,6 +1026,37 @@ with tab_bt:
         "`python -m scripts.fetch_history --years 1` en una terminal."
     )
 
+    # ─── Span real de la data cacheada (para anclar fechas y presets) ───
+    @st.cache_data(show_spinner=False)
+    def _data_span() -> tuple[date | None, date | None]:
+        """Lee la fecha mín/máx de los parquet disponibles. Cacheado."""
+        from pathlib import Path
+        import pandas as _pd
+        hist = REPO_ROOT_DASH / "data_cache" / "history"
+        mins, maxs = [], []
+        for name, cfg in symbols.items():
+            p = hist / f"{cfg.name}_{cfg.timeframe}.parquet"
+            if p.exists():
+                try:
+                    t = _pd.read_parquet(p, columns=["time"])["time"]
+                    mins.append(t.min())
+                    maxs.append(t.max())
+                except Exception:
+                    pass
+        if not mins:
+            return None, None
+        return (min(mins).date(), max(maxs).date())
+
+    from config.settings import REPO_ROOT as REPO_ROOT_DASH  # noqa: E402
+    data_from, data_to = _data_span()
+    anchor = data_to or date.today()
+    if data_from and data_to:
+        st.caption(f"📅 Data disponible: **{data_from} → {data_to}**  "
+                   f"(los presets se anclan al fin de la data, no a hoy).")
+    else:
+        st.warning("No hay parquet en `data_cache/history/`. "
+                   "Corre `python -m scripts.fetch_history --years 1` primero.")
+
     bt1, bt2, bt3 = st.columns([2, 2, 2])
     with bt1:
         sel_symbols = st.multiselect(
@@ -1037,32 +1068,31 @@ with tab_bt:
     with bt2:
         from_d = st.date_input(
             "Desde",
-            value=st.session_state.get("bt_from_val", date.today() - timedelta(days=365)),
+            value=st.session_state.get("bt_from_val", anchor - timedelta(days=365)),
             key="bt_from",
         )
     with bt3:
         to_d = st.date_input(
             "Hasta",
-            value=st.session_state.get("bt_to_val", date.today()),
+            value=st.session_state.get("bt_to_val", anchor),
             key="bt_to",
         )
 
-    # ─── Presets rápidos de rango temporal ───
-    st.caption("Presets rápidos:")
+    # ─── Presets rápidos — ANCLADOS AL FIN DE LA DATA (no a hoy) ───
+    st.caption("Presets rápidos (relativos al fin de la data):")
     p1, p2, p3, p4, p5, p6 = st.columns(6)
-    _today = date.today()
     _presets = [
-        (p1, "1M",  _today - timedelta(days=30)),
-        (p2, "3M",  _today - timedelta(days=90)),
-        (p3, "6M",  _today - timedelta(days=180)),
-        (p4, "YTD", date(_today.year, 1, 1)),
-        (p5, "1Y",  _today - timedelta(days=365)),
-        (p6, "2Y",  _today - timedelta(days=730)),
+        (p1, "1M",  anchor - timedelta(days=30)),
+        (p2, "3M",  anchor - timedelta(days=90)),
+        (p3, "6M",  anchor - timedelta(days=180)),
+        (p4, "YTD", date(anchor.year, 1, 1)),
+        (p5, "1Y",  anchor - timedelta(days=365)),
+        (p6, "2Y",  anchor - timedelta(days=730)),
     ]
     for col, label, start_d in _presets:
         if col.button(label, key=f"bt_preset_{label}", use_container_width=True):
-            st.session_state["bt_from_val"] = start_d
-            st.session_state["bt_to_val"] = _today
+            st.session_state["bt_from_val"] = max(start_d, data_from) if data_from else start_d
+            st.session_state["bt_to_val"] = anchor
             st.rerun()
 
     run_bt = st.button("▶  Correr backtest", type="primary", use_container_width=True)
