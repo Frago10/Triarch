@@ -36,6 +36,7 @@
 #  §16  Backtester en JavaScript (v0.6, corre en browser) — 2026-05-20
 #  §17  Calibración v0.7 sobre data MT5 real — 2026-05-26
 #  §18  Ejecución real de órdenes + backtest robusto (v0.8) — 2026-05-31
+#  §19  Fix señales en vivo: vela cerrada + bot apagado (v0.9) — 2026-05-31
 ################################################################################
 
 
@@ -1584,6 +1585,121 @@ PENDIENTE / PRÓXIMOS PASOS
     · El SL/TP a mercado usa el filled price del broker; el TradeMonitor ya
       detecta SL/TP/manual y registra el PnL real en la DB → revisar en el
       dashboard pestaña "Decisiones" tras los primeros trades.
+
+
+################################################################################
+#  §19  FIX SEÑALES EN VIVO: VELA CERRADA + BOT APAGADO  (v0.9)  —  2026-05-31
+################################################################################
+
+PEDIDO DEL USUARIO
+    "El bot no ha mandado señales desde el 20 de mayo. Revisa si algo anda mal
+     y corrígelo. Hoy tuve que mandar al menos una señal con el EURUSD a mano.
+     Para el oro seguiré esperando a ver si los toma o si dura una semana sin
+     dar indicios."
+
+DIAGNÓSTICO (sobre la SQLite real, data_cache/triarch.sqlite)
+    · 9131 signals, 39936 evals en total.
+    · ÚLTIMA escritura: signals 2026-05-15, evals 2026-05-17. NADA después.
+      → El bot NO ha estado corriendo desde mediados de mayo. Sin proceso vivo
+        = sin señales. ESTA ES LA CAUSA PRINCIPAL.
+    · Distribución de status: 8557 REJECTED_CONFLUENCE, 436 REJECTED_RISK,
+      solo 138 NEW.
+    · 7832 de los rechazos eran "min_signals:1<2" → confluencia rechazando
+      porque solo 1 estrategia disparaba.
+    · Las mismas señales NAS100 ORB LONG repetidas cada 30s (05:34:56, 05:35:26,
+      05:35:56…) → el bot RE-EVALUABA la MISMA vela en cada tick.
+
+CAUSA RAÍZ #1 (operativa) — EL BOT NO CORRE
+    El proceso (run_live / serve) no estaba vivo. El bot SOLO emite/ejecuta
+    mientras el proceso corre. Si se cierra la ventana, la máquina se suspende,
+    o se cierra MT5 → cero señales. Esto explica el grueso del "sin señales".
+
+CAUSA RAÍZ #2 (bug de código) — SE EVALUABA LA VELA EN FORMACIÓN
+    engine/orchestrator._tick_symbol pedía 300 velas (incluida la vela EN
+    FORMACIÓN) y evaluaba las estrategias sobre df.iloc[-1] = la vela actual,
+    que cambia en cada tick. Problemas:
+      · En cada tick (cada 30s) re-evaluaba la misma vela → miles de rechazos
+        duplicados (los 8557 / 7832 de arriba).
+      · El backtest usa velas COMPLETAS; el live usaba la incompleta →
+        DESAJUSTE: el live casi nunca veía 2 strats alineadas (confluencia 2/2)
+        porque en un instante de la vela formándose rara vez coinciden, mientras
+        que sobre la vela CERRADA sí coinciden ~209 veces/año (lo que da el
+        backtest).
+
+    FIX en engine/orchestrator.py:
+      · Se descarta la última vela (en formación): df = df.iloc[:-1].
+      · Se evalúa la última vela CERRADA UNA sola vez por vela: se trackea
+        self._last_bar[symbol]; si la vela cerrada ya se procesó, se hace return.
+      · Logs de visibilidad: por cada vela nueva con setups → INFO con qué
+        strats dispararon; sin setups → DEBUG.
+      · Heartbeat cada ~20 ticks (≈10 min con tick 30s): "[heartbeat] tick #N
+        vivo · últimas velas: …" para detectar si el proceso murió.
+
+VERIFICACIÓN — SEÑALES SÍ FLUYEN AL EVALUAR VELAS CERRADAS
+    Simulando el path live sobre las últimas 500 velas cerradas reales:
+      NAS100 (2/2): 177 setups → 22 pasan confluencia  (~1/día de sesión)
+      XAUUSD (2/2): 437 setups → 87 pasan confluencia  (~4/día, luego cap 1/día)
+      EURUSD (2/2): 187 setups →  4 pasan confluencia  (~3.8/sem en backtest)
+    Conclusión: con el bot CORRIENDO y el fix de vela cerrada, fluyen ~15-16
+    señales/semana entre los 3 activos. El "sin señales" era el bot apagado.
+
+DECISIÓN: NO AFLOJAR LA CONFLUENCIA
+    Se evaluó bajar EURUSD de 2/2 a 2/1 o 1/1 (el usuario lo mencionó). Backtest:
+      EURUSD 2/2: 171 trades · PF 1.56 · 3.8/sem   ← se mantiene
+      EURUSD 2/1: 1312 trades · PF 1.09 · 24.75/sem ← destruye el edge
+      EURUSD 1/1: idéntico a 2/1 (PF 1.09)
+    Aflojar multiplica el volumen pero deja el sistema casi breakeven. El 2/2
+    da PF 1.56 con flujo razonable (≈1 señal cada 1-2 días). Se MANTIENE 2/2
+    en los 3 activos.
+
+MEJORAS A run_live.py
+    · Resumen de arranque: imprime modo efectivo por activo (XAUUSD 🟢 EJECUTA
+      ÓRDENES, NAS100/EURUSD · solo señal).
+    · --once: corre UN tick y sale → diagnóstico rápido de "¿qué evalúa?".
+    · Auto-reconexión: si account_info() devuelve None (MT5 caído por suspensión
+      o red), reintenta initialize() con backoff. Antes el loop seguía ticando
+      en vacío sin avisar.
+
+NOTA — TELEGRAM NO ENVÍA (chat_id vacío)
+    El .env tiene TELEGRAM_BOT_TOKEN pero TELEGRAM_CHAT_ID VACÍO. El
+    TelegramNotifier se auto-desactiva si falta el chat_id (enabled = token AND
+    chat). Por eso las señales NO llegan a Telegram — van al log, la SQLite y el
+    dashboard. Si el usuario quiere recibirlas en Telegram debe poner su
+    TELEGRAM_CHAT_ID en el .env (se obtiene escribiéndole al bot y mirando
+    https://api.telegram.org/bot<TOKEN>/getUpdates).
+
+────────────────────────────────────────────────────────────────────────
+QUÉ DEBE HACER EL USUARIO (lo más importante de esta sesión)
+────────────────────────────────────────────────────────────────────────
+    El bot NO emite si no está corriendo. Para que mande señales y el oro tome
+    trades, hay que DEJARLO CORRIENDO durante la sesión de mercado:
+
+    1. Diagnóstico de un tick (ver qué evalúa AHORA mismo):
+         python -m scripts.run_live --once
+       → imprime el resumen de modos + qué velas/setups vio en ese tick.
+
+    2. Dejarlo corriendo (la ventana DEBE quedar abierta, máquina sin suspender):
+         python -m scripts.run_live --tick 30
+       o con dashboard:
+         python -m scripts.serve --tick 30 --port 8765
+
+    3. Verás en el log: "[heartbeat] tick #N vivo" cada ~10 min, y
+       "XAUUSD: vela … → N setup(s): …" cuando haya setups.
+
+    4. El oro (M30, sesión 08:00-20:00 UTC, cap 1 trade/día) dará ~4 setups/día
+       que pasan confluencia, pero el cap deja 1 trade/día. NO debería pasar una
+       semana sin actividad si el bot está vivo durante la sesión.
+
+ARCHIVOS TOCADOS (v0.9)
+    engine/orchestrator.py   — evaluar solo vela cerrada (1 vez/vela), heartbeat,
+                               logs de visibilidad, self._last_bar / _tick_count.
+    scripts/run_live.py      — resumen de arranque, --once, auto-reconexión.
+    contexto.txt             — este §19.
+
+VERIFICACIÓN
+    · pytest: 23/23 pasan.
+    · Simulación del path live sobre data real: señales fluyen (ver arriba).
+    · --once NO se pudo correr aquí (requiere MT5+Windows); el usuario lo corre.
 
 
 ################################################################################

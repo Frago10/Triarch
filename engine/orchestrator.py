@@ -77,6 +77,12 @@ class Orchestrator:
             risk=self.risk,
         )
 
+        # Última vela CERRADA ya procesada por símbolo. Evita re-evaluar la vela
+        # en formación en cada tick (lo que generaba miles de rechazos duplicados
+        # y desajustaba el live respecto al backtest, que usa velas completas).
+        self._last_bar: dict[str, object] = {}
+        self._tick_count = 0
+
     # ─────────────────────────────────────────────────────
     # Tick: evalúa todos los activos una vez
     # ─────────────────────────────────────────────────────
@@ -96,11 +102,20 @@ class Orchestrator:
         except Exception as e:  # noqa: BLE001
             logger.exception(f"TradeMonitor falló: {e}")
 
+        self._tick_count += 1
         for name, cfg in self.symbols.items():
             try:
                 self._tick_symbol(cfg)
             except Exception as e:  # noqa: BLE001
                 logger.exception(f"Error en tick {name}: {e}")
+
+        # Heartbeat cada ~20 ticks para confirmar que el loop sigue vivo aunque
+        # no haya señales (útil para detectar si el proceso murió silenciosamente).
+        if self._tick_count % 20 == 1:
+            last_bars = ", ".join(
+                f"{s}={str(t)[:16]}" for s, t in self._last_bar.items()
+            ) or "sin velas aún"
+            logger.info(f"[heartbeat] tick #{self._tick_count} vivo · últimas velas: {last_bars}")
 
     def _tick_symbol(self, cfg: SymbolConfig) -> None:
         df = self.mt5_client.get_rates(
@@ -108,9 +123,20 @@ class Orchestrator:
             timeframe=cfg.timeframe,
             n_bars=300,
         )
-        if df.empty:
-            logger.debug(f"{cfg.name}: no hay velas")
+        if df.empty or len(df) < 62:
+            logger.debug(f"{cfg.name}: velas insuficientes ({len(df)})")
             return
+
+        # ─── EVALUAR SOLO VELAS CERRADAS ───
+        # La última fila de MT5 es la vela EN FORMACIÓN (cambia cada tick). El
+        # backtest usa velas completas; para que el live coincida y para no
+        # re-emitir/rechazar la misma vela en cada tick, descartamos la vela en
+        # formación y evaluamos la última CERRADA, UNA sola vez por vela.
+        df = df.iloc[:-1].reset_index(drop=True)
+        last_closed_time = df.iloc[-1]["time"]
+        if self._last_bar.get(cfg.name) == last_closed_time:
+            return  # esta vela cerrada ya se procesó en un tick anterior
+        self._last_bar[cfg.name] = last_closed_time
 
         df = add_default_indicators(df)
         df = opening_range(df, minutes=15)
@@ -124,6 +150,16 @@ class Orchestrator:
             self.store.save_eval(ev)
             if sig:
                 signals.append(sig)
+
+        # Log de visibilidad: vela nueva evaluada + cuántas strats dispararon.
+        if signals:
+            fired = ", ".join(f"{s.strategy}/{s.direction.value}" for s in signals)
+            logger.info(
+                f"{cfg.name}: vela {str(last_closed_time)[:16]} → "
+                f"{len(signals)} setup(s): {fired}"
+            )
+        else:
+            logger.debug(f"{cfg.name}: vela {str(last_closed_time)[:16]} → sin setups")
 
         if not signals:
             return
