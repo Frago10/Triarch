@@ -33,6 +33,8 @@ from pathlib import Path
 
 import httpx
 
+from signals.notifiers import http_request_ssl_tolerant
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = REPO_ROOT / ".env"
 
@@ -102,7 +104,7 @@ def _set_env_key(key: str, value: str) -> None:
 
 def _get_updates(token: str) -> list[dict]:
     url = f"https://api.telegram.org/bot{token}/getUpdates"
-    r = httpx.get(url, timeout=15)
+    r = http_request_ssl_tolerant("GET", url, timeout=15)
     r.raise_for_status()
     data = r.json()
     if not data.get("ok"):
@@ -143,7 +145,8 @@ def _send_test(token: str, chat_id: str) -> bool:
         "_(mensaje de prueba — la configuración funciona)_"
     )
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    r = httpx.post(
+    r = http_request_ssl_tolerant(
+        "POST",
         url,
         json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
         timeout=15,

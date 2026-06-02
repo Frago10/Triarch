@@ -17,6 +17,28 @@ from config.settings import TriarchSettings, get_settings
 from signals.schema import Signal
 
 
+def http_request_ssl_tolerant(method: str, url: str, **kwargs) -> httpx.Response:
+    """
+    Hace una petición HTTP tolerante a entornos que interceptan SSL (antivirus,
+    proxy corporativo, OneDrive/Windows con cert store incompleto).
+
+    Intenta primero con verificación normal; si falla por un problema de
+    CERTIFICADO/SSL, reintenta UNA vez sin verificación (verify=False) y avisa.
+    No silencia errores de red reales (timeouts, DNS): esos se propagan.
+    """
+    try:
+        return httpx.request(method, url, **kwargs)
+    except httpx.ConnectError as e:
+        msg = str(e).upper()
+        if "CERTIFICATE" in msg or "SSL" in msg:
+            logger.warning(
+                "SSL no verificable en este entorno (interceptación de certificado). "
+                "Reintentando sin verificación — OK para la API de Telegram."
+            )
+            return httpx.request(method, url, verify=False, **kwargs)
+        raise
+
+
 class Notifier(ABC):
     @abstractmethod
     def notify(self, signal: Signal, mode: str) -> None: ...
@@ -55,7 +77,8 @@ class TelegramNotifier(Notifier):
         )
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         try:
-            r = httpx.post(
+            r = http_request_ssl_tolerant(
+                "POST",
                 url,
                 json={"chat_id": self.chat, "text": text, "parse_mode": "Markdown"},
                 timeout=10,
