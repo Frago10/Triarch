@@ -37,6 +37,7 @@
 #  §17  Calibración v0.7 sobre data MT5 real — 2026-05-26
 #  §18  Ejecución real de órdenes + backtest robusto (v0.8) — 2026-05-31
 #  §19  Fix señales en vivo: vela cerrada + bot apagado (v0.9) — 2026-05-31
+#  §20  Setup de notificaciones por Telegram (v0.9.1) — 2026-05-31
 ################################################################################
 
 
@@ -1700,6 +1701,54 @@ VERIFICACIÓN
     · pytest: 23/23 pasan.
     · Simulación del path live sobre data real: señales fluyen (ver arriba).
     · --once NO se pudo correr aquí (requiere MT5+Windows); el usuario lo corre.
+
+
+################################################################################
+#  §20  SETUP DE NOTIFICACIONES POR TELEGRAM  (v0.9.1)  —  2026-05-31
+################################################################################
+
+CONTEXTO
+    El usuario quiere recibir las señales en Telegram. Estado real del .env:
+    TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID AMBOS VACÍOS → nunca se configuró.
+    El TelegramNotifier se auto-desactiva sin ambos valores (signals/notifiers.py:
+    enabled = bool(token and chat)).
+
+NUEVO SCRIPT — scripts/setup_telegram.py
+    Configurador automático que evita el paso manual más molesto (averiguar el
+    chat_id). Hace:
+      · Detecta el chat_id llamando a getUpdates de la API de Telegram (tras que
+        el usuario le escriba al bot).
+      · Escribe TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el .env (preservando el
+        resto de líneas).
+      · Manda un mensaje de PRUEBA para confirmar.
+    Comandos:
+      python -m scripts.setup_telegram --help-es        # guía paso a paso ES
+      python -m scripts.setup_telegram --token <TOKEN>   # configura + prueba
+      python -m scripts.setup_telegram                   # usa token del .env
+      python -m scripts.setup_telegram --test            # solo reenvía prueba
+
+FLUJO QUE DEBE SEGUIR EL USUARIO (una sola vez, ~3 min)
+    1. Telegram → @BotFather → /newbot → nombre + username → copia el TOKEN.
+    2. Abre tu bot (t.me/tu_bot) y pulsa "Start" / envíale "hola".
+       (Telegram NO deja que el bot escriba si tú no escribiste primero.)
+    3. python -m scripts.setup_telegram --token <TOKEN>
+       → detecta chat_id, lo guarda en .env, manda mensaje de prueba.
+    4. Arranca el bot:  python -m scripts.run_live --tick 30
+       Cada señal emitida llega al Telegram.
+
+NOTAS TÉCNICAS
+    · El .env está en .gitignore y NO se trackea → los secretos no se suben.
+    · setup_telegram.py SÍ se commitea (no tiene secretos).
+    · get_settings() cachea: el bot debe arrancar DESPUÉS de configurar Telegram
+      (corre setup_telegram en una terminal, luego run_live en otra → lee .env
+      fresco). Si el bot ya estaba corriendo, reinícialo para que tome el token.
+    · build_default_notifiers() añade TelegramNotifier solo si token y chat están
+      presentes → tras el setup, las señales empiezan a llegar sin más cambios.
+
+ARCHIVOS TOCADOS (v0.9.1)
+    scripts/setup_telegram.py  — NUEVO.
+    .env.example               — nota apuntando al configurador.
+    contexto.txt               — este §20.
 
 
 ################################################################################
