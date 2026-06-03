@@ -109,9 +109,10 @@ def main() -> int:
     publish_mt5 = not args.publish_no_mt5
     last_light = last_full = 0.0
     if args.publish_every_min > 0 or args.publish_full_every_min > 0:
-        # Publicación inicial para que el dashboard refleje el arranque de inmediato.
-        _do_publish(full=args.publish_full_every_min > 0, include_mt5=publish_mt5,
-                    years_full=1)
+        # Publicación inicial LIGERA (rápida) para que el dashboard refleje el
+        # arranque de inmediato sin demorar el primer tick. El refresh completo
+        # (histórico+OHLC, pesado) queda para el timer diario.
+        _do_publish(full=False, include_mt5=publish_mt5, years_full=1)
         last_light = last_full = time.monotonic()
         logger.info(
             f"Publicación a GitHub activa — light cada {args.publish_every_min}min, "
