@@ -76,6 +76,12 @@ class Orchestrator:
             store=self.store,
             risk=self.risk,
         )
+        # Reconciliar posiciones ya abiertas → evita duplicar trades tras reinicio
+        # (el estado de risk es en memoria; un servicio que reinicia lo perdería).
+        try:
+            self.monitor.sync_open_positions()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"sync_open_positions falló: {e}")
 
         # Última vela CERRADA ya procesada por símbolo. Evita re-evaluar la vela
         # en formación en cada tick (lo que generaba miles de rechazos duplicados

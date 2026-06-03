@@ -56,6 +56,35 @@ class TradeMonitor:
         # Magic numbers que el bot usa — todas las estrategias + el fallback.
         self._our_magics = set(MAGIC_NUMBERS.values()) | {MAGIC_FALLBACK}
 
+    def sync_open_positions(self) -> None:
+        """
+        Al ARRANCAR: marca active_trade en el RiskManager para los activos que ya
+        tienen una posición abierta del bot. El estado de risk vive en memoria y
+        se pierde al reiniciar; sin esto, tras un restart el bot podría abrir una
+        SEGUNDA posición en el mismo activo (rompe el cap "1 trade activo / día").
+        """
+        if not MT5_AVAILABLE:
+            return
+        import MetaTrader5 as mt5  # type: ignore[import-not-found]
+
+        positions = mt5.positions_get() or ()
+        name_by_broker = {
+            cfg.broker_symbol: name for name, cfg in self.risk.symbols.items()
+        }
+        open_names: set[str] = set()
+        for p in positions:
+            if p.magic in self._our_magics:
+                name = name_by_broker.get(p.symbol)
+                if name and name in self.risk.state:
+                    open_names.add(name)
+
+        for name in open_names:
+            self.risk.on_trade_open(name)  # setea active_trade=True
+            logger.info(
+                f"[sync] {name}: posición abierta detectada al arrancar → "
+                f"active_trade=True (no se abrirá otra hasta que cierre)."
+            )
+
     def poll(self) -> None:
         """Una pasada del monitor: refresh tickets abiertos + detecta cierres."""
         if not MT5_AVAILABLE:
