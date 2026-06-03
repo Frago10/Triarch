@@ -39,6 +39,7 @@
 #  §19  Fix señales en vivo: vela cerrada + bot apagado (v0.9) — 2026-05-31
 #  §20  Setup de notificaciones por Telegram (v0.9.1) — 2026-05-31
 #  §21  Fix gate RR (float) + data refresh + visibilidad Telegram (v0.9.2) — 2026-06-03
+#  §22  Servicio live (Tarea Programada) + dashboard auto-publicado (v0.9.3) — 2026-06-03
 ################################################################################
 
 
@@ -90,7 +91,11 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 >>> trades porque la data terminaba a mediados de mayo); y se añadió visibilidad
 >>> por Telegram (aviso de arranque + latido). Verificado en demo: XAUUSD ejecutó
 >>> una orden real (ticket 56917583409) y las señales llegan a Telegram.
->>> El bot SOLO opera mientras run_live/serve esté corriendo — dejarlo vivo.
+>>> AHORA corre como SERVICIO (Tarea Programada "Triarch Bot", §22): arranca al
+>>> iniciar sesión, se relanza solo, y publica el dashboard a GitHub Pages cada
+>>> 10 min (https://frago10.github.io/Triarch/). Gestionar con
+>>> scripts/install_service.ps1 -Action status|start|stop|uninstall.
+>>> Requisito: MT5 abierto y con auto-login al arrancar Windows.
 
 Fecha: 2026-05-14
 
@@ -1850,6 +1855,80 @@ PENDIENTE / OJO
     · El dashboard estático de GH Pages seguirá mostrando data vieja hasta correr
       `python -m scripts.refresh_web` (+ git push) — eso regenera OHLC/state.json.
     · Cap XAUUSD = 1 trade/día: tras el trade de hoy no abrirá otro hasta mañana.
+
+################################################################################
+#  §22  SERVICIO LIVE (TAREA PROGRAMADA) + DASHBOARD AUTO-PUBLICADO (v0.9.3) — 2026-06-03
+################################################################################
+
+PEDIDO DEL USUARIO
+    "Quiero que opere live SIN que yo tenga que tocar la terminal — algo que ya
+     esté corriendo solo, y que el proceso se vea live en el dashboard (lo tengo
+     en GitHub Pages)."
+
+SOLUCIÓN — el bot corre como SERVICIO de Windows (Tarea Programada)
+    · scripts/triarch_service.ps1  — launcher: setea cwd + PYTHONUTF8, corre
+      `run_live --tick 30 --publish-every-min 10 --publish-full-every-min 1440`
+      en un loop que lo relanza si se cae. Loguea a logs/service.log (UTF-16 por
+      el operador *>> de PS; el log LIMPIO es logs/triarch.log de loguru).
+    · scripts/install_service.ps1  — registra/quita/arranca/para la Tarea
+      Programada "Triarch Bot" (trigger AtLogOn, RestartCount 999, sin límite de
+      tiempo). NO requiere admin (corre como el usuario, LogonType Interactive →
+      tiene acceso al MT5 del escritorio).
+        .\scripts\install_service.ps1            # instalar (arranca al login)
+        .\scripts\install_service.ps1 -Action start|stop|status|uninstall
+    · AMBOS .ps1 en ASCII PURO y derivan la ruta de $PSScriptRoot — Windows
+      PowerShell 5.1 mal-parsea .ps1 con no-ASCII sin BOM (y la ruta del proyecto
+      tiene caracteres hebreos "מסמכים"). OJO con esto al editar los .ps1.
+    REQUISITO: MT5 abierto y logueado al iniciar sesión (activar auto-login de la
+    demo en MT5: Tools → Options). run_live tiene auto-reconexión si MT5 no está
+    listo todavía.
+
+DASHBOARD AUTO-PUBLICADO (GitHub Pages — es ESTÁTICO, no hay backend live)
+    El bot publica su estado al repo cada pocos minutos y GH Pages re-despliega
+    solo (~1 min). "Live" = snapshot cada 10 min, no streaming.
+    · scripts/publish.py:
+        publish_light()  — export_web (state.json: señales+cuenta) + git push.
+                           Rápido → cada 10 min (--publish-every-min 10).
+        publish_full()   — fetch_history + backtest snapshot + export_ohlc +
+                           export_web + push. Pesado (OHLC ~16MB EURUSD) → 1×/día
+                           (--publish-full-every-min 1440). El arranque hace UNA
+                           publicación LIGHT (rápido); el full lo dispara el timer.
+    · run_live.py — flags --publish-every-min / --publish-full-every-min /
+                    --publish-no-mt5, y _do_publish() en el loop (nunca tumba el
+                    loop si el push falla). Push no-interactivo: gh está logueado
+                    (Frago10, keyring) y credential.helper=manager.
+    · El push SOLO toca data/ (state.json + ohlc) y docs/data/ — nunca código ni
+      .env (gitignored). Hace pull --rebase --autostash antes de pushear.
+    · COSTO: ~1 commit cada 10 min en main (ruido de historial, asumido). El
+      snapshot light es chico (KB). state.json incluye la cuenta demo (login/
+      balance) → es público; si molesta, usar --publish-no-mt5.
+    VERIFICADO: https://frago10.github.io/Triarch/data/state.json sirve
+    generated_at de hoy, account equity live, señales del día, 3 backtests.
+
+BLINDAJE — reconciliar posiciones al arrancar (servicio restartable)
+    El estado del RiskManager es EN MEMORIA → un restart lo perdía y el bot podía
+    abrir una 2ª posición concurrente en el mismo activo (rompía el cap).
+    FIX: TradeMonitor.sync_open_positions() (llamado en Orchestrator.__init__)
+    detecta posiciones abiertas del bot por magic y marca active_trade=True.
+    LIMITACIÓN menor: si el activo cerró su trade del día MIENTRAS el bot estaba
+    apagado, trades_today vuelve a 0 al reiniciar → podría tomar 1 trade extra ese
+    día. En demo es tolerable; persistir trades_today en DB queda pendiente.
+
+CÓMO OPERARLO
+    · Ver estado:   .\scripts\install_service.ps1 -Action status
+    · Logs limpios: logs/triarch.log   (service.log es UTF-16)
+    · Parar TODO:   .\scripts\install_service.ps1 -Action stop   (o TRIARCH_KILL=1)
+    · El bot manda a Telegram: aviso de arranque + cada señal + latido cada 2h.
+
+ARCHIVOS TOCADOS (v0.9.3)
+    scripts/publish.py            — NUEVO (publish_light/full + git).
+    scripts/triarch_service.ps1   — NUEVO (launcher del servicio).
+    scripts/install_service.ps1   — NUEVO (alta/baja de la Tarea Programada).
+    scripts/run_live.py           — flags de publicación + _do_publish en el loop.
+    executor/trade_monitor.py     — sync_open_positions().
+    engine/orchestrator.py        — llama sync_open_positions en __init__.
+    data/ohlc/*, data/state.json (+docs) — refrescados a hoy y publicados.
+    contexto.txt                  — este §22.
 
 ################################################################################
 #  FIN — actualizar §03, §10 y §11 al final de cada sesión
