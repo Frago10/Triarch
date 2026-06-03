@@ -15,7 +15,7 @@ El bucle principal:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 
@@ -83,6 +83,79 @@ class Orchestrator:
         self._last_bar: dict[str, object] = {}
         self._tick_count = 0
 
+        # ─── Visibilidad por Telegram ───────────────────────────────────────
+        # Contadores de actividad para el latido/resumen periódico. Sirven para
+        # confirmar que el bot "está captando algo" aunque no dispare trades
+        # (que con confluencia 2/2 puede pasar varias horas seguidas).
+        self._activity = {
+            "setups": 0,            # señales crudas que emitió alguna strat
+            "passed_confluence": 0,  # pasaron el filtro de confluencia
+            "rejected_confluence": 0,
+            "rejected_risk": 0,
+            "signals_emitted": 0,    # notificadas (SIGNAL_ONLY)
+            "orders_placed": 0,      # órdenes reales colocadas (AUTO)
+        }
+        self._started_at = datetime.now(timezone.utc)
+        self._last_status_at: datetime | None = None
+        # Cada cuántos minutos mandar el resumen de actividad a Telegram.
+        # Override con env TELEGRAM_STATUS_EVERY_MIN. 0 = desactiva el latido.
+        import os
+        try:
+            self._status_every_min = int(os.getenv("TELEGRAM_STATUS_EVERY_MIN", "120"))
+        except ValueError:
+            self._status_every_min = 120
+
+    # ─────────────────────────────────────────────────────
+    # Notificaciones de estado (Telegram + log)
+    # ─────────────────────────────────────────────────────
+    def _broadcast_status(self, text: str) -> None:
+        for n in self.notifiers:
+            try:
+                n.status(text)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"status notifier {type(n).__name__} falló: {e}")
+
+    def send_startup_status(self) -> None:
+        """Avisa por Telegram que el bot arrancó y qué está vigilando."""
+        lines = ["🟢 *Triarch arrancó* — vigilando mercado:"]
+        for name, cfg in self.symbols.items():
+            live = get_take_trades(name, default=cfg.take_trades)
+            eff = cfg.mode.value if live else "SIGNAL_ONLY"
+            tag = "🤖 ejecuta órdenes" if (live and cfg.mode is ExecutionMode.AUTO) else "🔔 solo señal"
+            lines.append(
+                f"`{name}` {cfg.timeframe} · {cfg.session_utc.start}-{cfg.session_utc.end} UTC · {eff} · {tag}"
+            )
+        lines.append("_Recibirás aquí cada señal que pase confluencia + risk._")
+        self._broadcast_status("\n".join(lines))
+        self._last_status_at = datetime.now(timezone.utc)
+
+    def _maybe_send_status(self) -> None:
+        """Latido periódico: confirma que el bot sigue vivo y captando setups."""
+        if self._status_every_min <= 0:
+            return
+        now = datetime.now(timezone.utc)
+        ref = self._last_status_at or self._started_at
+        if now - ref < timedelta(minutes=self._status_every_min):
+            return
+        a = self._activity
+        last_bars = ", ".join(
+            f"{s} {str(t)[11:16]}" for s, t in self._last_bar.items()
+        ) or "—"
+        text = (
+            "💓 *Triarch sigue vivo*\n"
+            f"Últimas {self._status_every_min} min de actividad:\n"
+            f"· setups vistos: `{a['setups']}`\n"
+            f"· pasaron confluencia: `{a['passed_confluence']}`\n"
+            f"· rechazos confluencia/risk: `{a['rejected_confluence']}`/`{a['rejected_risk']}`\n"
+            f"· señales notificadas: `{a['signals_emitted']}`  · órdenes (oro): `{a['orders_placed']}`\n"
+            f"· últimas velas: {last_bars}"
+        )
+        self._broadcast_status(text)
+        # Resetear contadores de la ventana
+        for k in self._activity:
+            self._activity[k] = 0
+        self._last_status_at = now
+
     # ─────────────────────────────────────────────────────
     # Tick: evalúa todos los activos una vez
     # ─────────────────────────────────────────────────────
@@ -116,6 +189,9 @@ class Orchestrator:
                 f"{s}={str(t)[:16]}" for s, t in self._last_bar.items()
             ) or "sin velas aún"
             logger.info(f"[heartbeat] tick #{self._tick_count} vivo · últimas velas: {last_bars}")
+
+        # Latido/resumen a Telegram (cada TELEGRAM_STATUS_EVERY_MIN minutos).
+        self._maybe_send_status()
 
     def _tick_symbol(self, cfg: SymbolConfig) -> None:
         df = self.mt5_client.get_rates(
@@ -153,6 +229,7 @@ class Orchestrator:
 
         # Log de visibilidad: vela nueva evaluada + cuántas strats dispararon.
         if signals:
+            self._activity["setups"] += len(signals)
             fired = ", ".join(f"{s.strategy}/{s.direction.value}" for s in signals)
             logger.info(
                 f"{cfg.name}: vela {str(last_closed_time)[:16]} → "
@@ -171,6 +248,7 @@ class Orchestrator:
             self.confluence_by_symbol[cfg.name] = confluence
         decision = confluence.filter(signals)
         if not decision.accepted:
+            self._activity["rejected_confluence"] += 1
             for s in decision.rejected_signals or signals:
                 s.status = SignalStatus.REJECTED_CONFLUENCE
                 s.reject_reason = decision.reason
@@ -180,10 +258,12 @@ class Orchestrator:
 
         chosen = decision.chosen_signal
         assert chosen is not None
+        self._activity["passed_confluence"] += 1
 
         # Risk
         rd = self.risk.can_take_signal(chosen, now=datetime.now(timezone.utc))
         if not rd.accepted:
+            self._activity["rejected_risk"] += 1
             chosen.status = SignalStatus.REJECTED_RISK
             chosen.reject_reason = f"{rd.reason.value}: {rd.detail}"
             self.store.save_signal(chosen)
@@ -228,3 +308,6 @@ class Orchestrator:
 
         if result.success and effective_mode is ExecutionMode.AUTO:
             self.risk.on_trade_open(cfg.name)
+            self._activity["orders_placed"] += 1
+        else:
+            self._activity["signals_emitted"] += 1

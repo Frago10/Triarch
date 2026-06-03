@@ -236,7 +236,10 @@ def backtest_symbol(
             continue
 
         # ─── Filtro 2: RR por debajo del mínimo del símbolo ───
-        if chosen.rr_ratio < min_rr:
+        # Epsilon 1e-6: mismo motivo que en risk.manager — el rr recomputado
+        # por las strats sufre cancelación de float en precios grandes (oro) y
+        # quedaba 2.19999<2.2, descartando ~50% de las señales de calidad.
+        if chosen.rr_ratio < min_rr - 1e-6:
             skipped["min_rr"] += 1
             continue
 

@@ -28,6 +28,19 @@ from data_layer.mt5_client import MT5Client
 from engine.orchestrator import Orchestrator
 
 
+def _do_publish(full: bool, include_mt5: bool, years_full: int = 1) -> None:
+    """Exporta el snapshot del dashboard y lo pushea a GitHub. Nunca tumba el loop."""
+    try:
+        from scripts.publish import publish_full, publish_light
+
+        if full:
+            publish_full(years=years_full, include_mt5=include_mt5)
+        else:
+            publish_light(include_mt5=include_mt5)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Publicación a GitHub falló (continúo operando): {e}")
+
+
 def _print_startup_summary(settings, symbols) -> None:
     logger.info("─" * 60)
     logger.info("TRIARCH — resumen de arranque")
@@ -47,6 +60,23 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tick", type=int, default=60, help="Segundos entre ticks")
     parser.add_argument("--once", action="store_true", help="Un solo tick y salir (diagnóstico)")
+    parser.add_argument(
+        "--publish-every-min",
+        type=int,
+        default=0,
+        help="Cada N min, exporta state.json y lo pushea a GitHub (dashboard live). 0=off.",
+    )
+    parser.add_argument(
+        "--publish-full-every-min",
+        type=int,
+        default=0,
+        help="Cada N min, refresh completo (histórico+OHLC+backtest) y push. 0=off. Sugerido 1440.",
+    )
+    parser.add_argument(
+        "--publish-no-mt5",
+        action="store_true",
+        help="No incluir la cuenta MT5 en el snapshot publicado (privacidad).",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -60,6 +90,11 @@ def main() -> int:
 
     orch = Orchestrator(client, settings)
     _print_startup_summary(settings, symbols)
+    # Aviso de arranque por Telegram (confirma que el bot está vivo y vigilando).
+    try:
+        orch.send_startup_status()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"No se pudo enviar el aviso de arranque: {e}")
 
     if args.once:
         logger.info("Modo --once: ejecutando UN tick…")
@@ -69,6 +104,19 @@ def main() -> int:
         return 0
 
     logger.info(f"Triarch live loop iniciado — tick cada {args.tick}s. Ctrl+C para parar.")
+
+    # ─── Publicación del dashboard (GitHub Pages) ───
+    publish_mt5 = not args.publish_no_mt5
+    last_light = last_full = 0.0
+    if args.publish_every_min > 0 or args.publish_full_every_min > 0:
+        # Publicación inicial para que el dashboard refleje el arranque de inmediato.
+        _do_publish(full=args.publish_full_every_min > 0, include_mt5=publish_mt5,
+                    years_full=1)
+        last_light = last_full = time.monotonic()
+        logger.info(
+            f"Publicación a GitHub activa — light cada {args.publish_every_min}min, "
+            f"full cada {args.publish_full_every_min}min."
+        )
 
     consecutive_disconnects = 0
     try:
@@ -94,6 +142,16 @@ def main() -> int:
                 consecutive_disconnects = 0
 
             orch.tick()
+
+            # ─── Snapshot al dashboard según intervalos ───
+            now = time.monotonic()
+            if args.publish_full_every_min > 0 and now - last_full >= args.publish_full_every_min * 60:
+                _do_publish(full=True, include_mt5=publish_mt5, years_full=1)
+                last_full = last_light = now
+            elif args.publish_every_min > 0 and now - last_light >= args.publish_every_min * 60:
+                _do_publish(full=False, include_mt5=publish_mt5, years_full=1)
+                last_light = now
+
             time.sleep(args.tick)
     except KeyboardInterrupt:
         logger.info("Detenido por usuario.")

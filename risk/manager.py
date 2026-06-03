@@ -156,7 +156,14 @@ class RiskManager:
                 f"Cap de trades hoy: {st.trades_today}/{cfg.risk.max_trades_per_day}",
             )
 
-        if signal.rr_ratio < cfg.risk.min_rr_ratio:
+        # Tolerancia de punto flotante (1e-6): las estrategias fijan TP1 a
+        # exactamente `min_rr * risk` y luego recomputan rr=(tp1-entry)/risk.
+        # Con precios grandes (oro ~4500) esa resta sufre cancelación
+        # catastrófica → rr puede quedar en 2.19999999 y rechazar señales que
+        # apuntan EXACTAMENTE al min_rr. ~50% de las señales de oro caían aquí.
+        # El epsilon no deja pasar señales realmente por debajo del target
+        # (esas difieren en centésimas, no en 1e-6).
+        if signal.rr_ratio < cfg.risk.min_rr_ratio - 1e-6:
             return RiskDecision.block(
                 LockReason.RR_TOO_LOW,
                 f"R:R {signal.rr_ratio:.2f} < min {cfg.risk.min_rr_ratio}",

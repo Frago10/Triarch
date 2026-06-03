@@ -43,12 +43,19 @@ class Notifier(ABC):
     @abstractmethod
     def notify(self, signal: Signal, mode: str) -> None: ...
 
+    def status(self, text: str) -> None:
+        """Mensaje de estado libre (arranque, latido, resúmenes). Default: no-op."""
+        return
+
 
 class LoggerNotifier(Notifier):
     """Notifier de respaldo — solo loguea."""
 
     def notify(self, signal: Signal, mode: str) -> None:
         logger.info(f"[{mode}] {signal.short_repr()}")
+
+    def status(self, text: str) -> None:
+        logger.info(f"[STATUS] {text}")
 
 
 class TelegramNotifier(Notifier):
@@ -59,6 +66,19 @@ class TelegramNotifier(Notifier):
         self.token = self.settings.telegram_bot_token
         self.chat = self.settings.telegram_chat_id
         self.enabled = bool(self.token and self.chat)
+
+    def _send(self, text: str) -> None:
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        try:
+            r = http_request_ssl_tolerant(
+                "POST",
+                url,
+                json={"chat_id": self.chat, "text": text, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+            r.raise_for_status()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Telegram falló: {e}")
 
     def notify(self, signal: Signal, mode: str) -> None:
         if not self.enabled:
@@ -75,17 +95,12 @@ class TelegramNotifier(Notifier):
             f"R:R `{signal.rr_ratio:.2f}`  Score `{signal.score:.2f}`  "
             f"Conf `{signal.confidence.value}`"
         )
-        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-        try:
-            r = http_request_ssl_tolerant(
-                "POST",
-                url,
-                json={"chat_id": self.chat, "text": text, "parse_mode": "Markdown"},
-                timeout=10,
-            )
-            r.raise_for_status()
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Telegram falló: {e}")
+        self._send(text)
+
+    def status(self, text: str) -> None:
+        if not self.enabled:
+            return
+        self._send(text)
 
 
 def build_default_notifiers() -> list[Notifier]:

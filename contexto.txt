@@ -38,6 +38,7 @@
 #  §18  Ejecución real de órdenes + backtest robusto (v0.8) — 2026-05-31
 #  §19  Fix señales en vivo: vela cerrada + bot apagado (v0.9) — 2026-05-31
 #  §20  Setup de notificaciones por Telegram (v0.9.1) — 2026-05-31
+#  §21  Fix gate RR (float) + data refresh + visibilidad Telegram (v0.9.2) — 2026-06-03
 ################################################################################
 
 
@@ -82,6 +83,14 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 ################################################################################
 #  §03  ETAPA ACTUAL
 ################################################################################
+
+>>> ÚLTIMO (2026-06-03, v0.9.2 — ver §21): bot puesto a operar en vivo. Se
+>>> corrigió un bug de float en el gate de RR que mataba ~50% de las señales de
+>>> oro; se refrescó la data a hoy (el backtest "de hoy a un mes" daba pocos
+>>> trades porque la data terminaba a mediados de mayo); y se añadió visibilidad
+>>> por Telegram (aviso de arranque + latido). Verificado en demo: XAUUSD ejecutó
+>>> una orden real (ticket 56917583409) y las señales llegan a Telegram.
+>>> El bot SOLO opera mientras run_live/serve esté corriendo — dejarlo vivo.
 
 Fecha: 2026-05-14
 
@@ -1750,6 +1759,97 @@ ARCHIVOS TOCADOS (v0.9.1)
     .env.example               — nota apuntando al configurador.
     contexto.txt               — este §20.
 
+
+################################################################################
+#  §21  FIX GATE RR (FLOAT) + DATA REFRESH + VISIBILIDAD TELEGRAM (v0.9.2) — 2026-06-03
+################################################################################
+
+PEDIDO DEL USUARIO
+    "El bot lleva días sin mandar una señal; el dashboard en GitHub solo muestra
+     datos hasta el 20 de mayo. El backtest de hoy a un mes da pocos trades, raro.
+     Quiero saber si el oro tomará trades en la demo — pero primero necesito que
+     las señales confirmen que está captando algo. Que opere desde ya."
+
+DIAGNÓSTICO (corrido en la máquina del usuario, MT5 vivo)
+    Tres causas independientes, todas confirmadas:
+
+    1. EL BOT NO ESTABA CORRIENDO desde mediados de mayo.
+       · SQLite: última señal 2026-05-15, último eval 2026-05-17. Nada después.
+       · Sin proceso vivo = sin ticks = sin señales = sin Telegram = sin trades.
+         (Es la misma causa raíz de §19; el proceso simplemente no se dejó corriendo.)
+
+    2. DATA OBSOLETA → backtest "de hoy a un mes" casi vacío.
+       · Los parquet/OHLC terminaban ~12-15 may 2026 (NAS100 11-may, XAU 12-may,
+         EUR 15-may). Hoy es 3-jun → el rango "último mes" (4-may→3-jun) caía casi
+         entero fuera de la data. El dashboard estático de GH Pages mostraba hasta
+         ~20-may porque ese era el último export. El motor estaba bien; faltaba data.
+       · FIX: `python -m scripts.fetch_history --years 1` (incremental). Ahora los
+         3 parquet llegan hasta hoy (NAS100 6880, XAUUSD 12418, EURUSD 77760 velas).
+
+    3. ⭐ BUG DE PUNTO FLOTANTE EN EL GATE DE RR — mataba ~50% de las señales de oro.
+       · Las strats fijan TP1 = entry ± (max(rr_target, cfg.min_rr)) * risk_pts y
+         luego RECOMPUTAN rr = |tp1-entry|/risk. Con precios grandes (oro ~4500) esa
+         resta sufre CANCELACIÓN CATASTRÓFICA de float → rr=2.19999999 en vez de 2.2.
+       · El gate `rr_ratio < min_rr` rechazaba esas señales como "RR 2.20 < min 2.2".
+         Reproducido: ~49.6% de señales que apuntan a 2.2 exacto caían por debajo.
+       · Como es no-determinista por señal, el oro tomaba ~la mitad de trades de los
+         que debía, y a veces "no tomaba nada" en ventanas cortas.
+       · FIX: tolerancia epsilon 1e-6 en el gate, en los DOS sitios que lo aplican:
+            risk/manager.py   (live)   → `< min_rr - 1e-6`
+            scripts/backtest.py (BT)   → `< min_rr - 1e-6`
+         El epsilon no deja pasar señales realmente bajas (difieren en centésimas).
+
+VERIFICACIÓN EN VIVO (MT5 demo, en sesión de oro)
+    · run_live --once ANTES del fix: XAUUSD vela 15:00 → 2 setups (ORB+PULLBACK,
+      pasó confluencia 2/2) → risk rechazó "R:R 2.20 < min 2.2".  ← el bug.
+    · run_live --once DESPUÉS del fix: misma vela → ORDEN EJECUTADA en demo:
+        ticket=56917583409  XAUUSD M30 ORB SHORT @ 4452.74  SL 4496.25  TP1 4357.02
+        R:R 2.20  lot 0.17.  ← oro SÍ toma trades en demo. Prueba end-to-end OK.
+    · Telegram: mensaje de prueba + aviso de arranque + la señal de la orden
+      LLEGARON al chat 1896501854 (vía ruta SSL-tolerante — el entorno intercepta
+      certificados; httpx reintenta con verify=False solo para api.telegram.org).
+
+BACKTEST CON DATA FRESCA (1 año, 2025-06-03 → 2026-06-03) — los 3 rentables
+    NAS100 M15 : 224 tr · WR 41.1% · PF 1.26 · E +0.15R · Sharpe 1.71 · 4.5/sem
+    XAUUSD M30 : 240 tr · WR 37.5% · PF 1.19 · E +0.12R · Sharpe 1.29 · 4.5/sem
+                 (240 vs 209 de §17 — el fix de RR dejó pasar más señales de oro;
+                  RR-bajo descartadas = 1, antes la mitad)
+    EURUSD M5  : 156 tr · WR 35.9% · PF 1.30 · E +0.19R · Sharpe 1.66 · 3.6/sem
+    "Último mes" (4-may→3-jun) XAUUSD: 19 trades (ya NO "cero/pocos" — era la data).
+
+VISIBILIDAD TELEGRAM — NUEVO ("confirma que está captando algo")
+    Para que el usuario sepa que el bot está vivo aunque la confluencia 2/2 no
+    dispare en horas, se añadió:
+      · signals/notifiers.py — Notifier.status(text); LoggerNotifier loguea,
+        TelegramNotifier manda texto (refactor: _send() compartido por notify/status).
+      · engine/orchestrator.py — contadores de actividad (_activity), send_startup_status()
+        (aviso de arranque con modos por activo) y _maybe_send_status() (latido/resumen
+        cada TELEGRAM_STATUS_EVERY_MIN min, default 120; 0 lo desactiva). El resumen
+        dice: setups vistos, pasaron confluencia, rechazos conf/risk, señales/órdenes,
+        últimas velas. Resetea contadores por ventana.
+      · scripts/run_live.py — llama send_startup_status() al arrancar.
+
+ARCHIVOS TOCADOS (v0.9.2)
+    risk/manager.py            — epsilon 1e-6 en gate RR.
+    scripts/backtest.py        — epsilon 1e-6 en gate RR.
+    signals/notifiers.py       — Notifier.status(); Telegram._send()/status().
+    engine/orchestrator.py     — _activity, send_startup_status, _maybe_send_status,
+                                 contadores en _tick_symbol.
+    scripts/run_live.py        — aviso de arranque por Telegram.
+    data_cache/history/*.parquet — refrescados a hoy (3-jun).
+    contexto.txt               — este §21.
+
+PENDIENTE / OJO
+    · El bot SOLO opera mientras run_live/serve esté corriendo. Para pruebas de
+      rendimiento coherentes hay que DEJARLO CORRIENDO (ventana abierta, máquina
+      sin suspender, MT5 abierto). Considerar una Tarea Programada de Windows que
+      lo arranque al inicio de sesión.
+    · Quedó 1 posición XAUUSD SHORT abierta en demo (ticket 56917583409, 0.17 lot)
+      de la prueba en vivo — MT5 honra su SL/TP aunque el bot no esté corriendo;
+      el TradeMonitor la reconcilia al reiniciar.
+    · El dashboard estático de GH Pages seguirá mostrando data vieja hasta correr
+      `python -m scripts.refresh_web` (+ git push) — eso regenera OHLC/state.json.
+    · Cap XAUUSD = 1 trade/día: tras el trade de hoy no abrirá otro hasta mañana.
 
 ################################################################################
 #  FIN — actualizar §03, §10 y §11 al final de cada sesión
