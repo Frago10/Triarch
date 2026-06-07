@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-06-07T15:58:44+00:00",
+    "generated_at": "2026-06-07T22:32:04+00:00",
     "is_sample": false,
     "signals_count": 1000,
     "evals_count": 500
@@ -19,9 +19,9 @@
     "name": "Jean Paul frago",
     "currency": "USD",
     "balance": 98577.96,
-    "equity": 98751.23,
+    "equity": 98744.73,
     "margin": 217.67,
-    "free_margin": 98533.56,
+    "free_margin": 98527.06,
     "leverage": 100
   },
   "symbols": {
