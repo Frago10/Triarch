@@ -564,7 +564,9 @@ function computeMetrics(trades, symbolName, tf, profile) {
 
 /* ═══════════════ runBacktest — entry point ═══════════════ */
 function runBacktest(options) {
-    const { ohlc, strategies, confluence, minRR, maxTradesDay, fromTs, toTs } = options;
+    const { ohlc, strategies, confluence, minRR, maxTradesDay, maxHoldBars, fromTs, toTs } = options;
+    // Time-stop: paridad con Python (cfg.risk.max_hold_bars). null/0 → 200.
+    const maxHold = maxHoldBars || 200;
     const cols = ohlc.columns;
     const bars = ohlc.rows.map(row => rowToBar(row, cols));
 
@@ -611,19 +613,20 @@ function runBacktest(options) {
         // Filtro sesión
         if (!inSession(bar.t, sessStart, sessEnd)) continue;
 
-        // Filtro RR
+        // Filtro RR — epsilon 1e-6 por cancelación de float en precios grandes
+        // (mismo fix que risk/manager.py: rr=2.19999 con target 2.2 debe pasar).
         const rr = Math.abs(chosen.tp1 - chosen.entry) / Math.abs(chosen.entry - chosen.sl);
-        if (rr < minRR) continue;
+        if (rr < minRR - 1e-6) continue;
 
         // Cap diario
         const dk = dateKeyUTC(bar.t);
         if ((tradesByDay[dk] || 0) >= maxTradesDay) continue;
         tradesByDay[dk] = (tradesByDay[dk] || 0) + 1;
 
-        // Resolver trade en las próximas 250 velas
-        const future = filtered.slice(i + 1, i + 251);
+        // Resolver trade — el time-stop (maxHold) cierra a mercado en la vela N
+        const future = filtered.slice(i + 1, i + 2 + maxHold);
         if (!future.length) break;
-        const outcome = resolveTrade(chosen, future);
+        const outcome = resolveTrade(chosen, future, maxHold);
 
         trades.push({
             time: new Date(bar.t).toISOString(),

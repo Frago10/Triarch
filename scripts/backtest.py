@@ -195,6 +195,8 @@ def backtest_symbol(
     #     bot real tomaría. Aplica: RR mínimo + cap de trades por día + sesión. ───
     min_rr = cfg.risk.min_rr_ratio
     max_trades_day = cfg.risk.max_trades_per_day
+    # Time-stop: tras N velas el trade se cierra a mercado (igual que el live).
+    max_hold = cfg.risk.max_hold_bars or 200
     sess_start, sess_end = cfg.session_utc.to_times()
     trades_by_day: dict = {}
     skipped = {"min_rr": 0, "daily_cap": 0, "out_of_window": 0}
@@ -258,10 +260,10 @@ def backtest_symbol(
 
         # Solo las próximas ~250 velas alcanzan para resolver el trade (max_bars=200).
         # Slicear acotado evita crear copias gigantes del df en cada trade (OOM).
-        future = df_full.iloc[i + 1 : i + 251]
+        future = df_full.iloc[i + 1 : i + 2 + max_hold]
         if future.empty:
             break
-        outcome = _resolve_trade(chosen, future)
+        outcome = _resolve_trade(chosen, future, max_bars=max_hold)
         trades.append(
             {
                 "time": bar_time,

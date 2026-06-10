@@ -36,6 +36,9 @@ from signals.schema import Signal, SignalStatus
 # Tolerancia para detectar TP/SL hits — % del rango entry-SL
 HIT_TOLERANCE = 0.05  # 5%
 
+# Minutos por timeframe — para el time-stop (max_hold_bars del symbol config).
+_TF_MINUTES = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D1": 1440}
+
 
 class TradeMonitor:
     """
@@ -118,10 +121,69 @@ class TradeMonitor:
                             f"Trade FILLED: ticket={ticket} {sig.symbol} "
                             f"@ {sig.filled_price:.5f}"
                         )
+                # ─── Time-stop: cerrar a mercado si excedió max_hold_bars ───
+                if self._exceeded_max_hold(sig):
+                    pos = next((p for p in positions if p.ticket == ticket), None)
+                    if pos and self._close_position_market(pos):
+                        logger.info(
+                            f"⏱ Time-stop: {sig.symbol} ticket={ticket} cerrado a "
+                            f"mercado tras exceder max_hold_bars."
+                        )
+                        # El cierre genera un deal; lo bookeamos ya mismo.
+                        self._close_signal(sig)
                 continue
 
             # ─── Ya no aparece en posiciones abiertas → cerró ───
             self._close_signal(sig)
+
+    # ─────────────────────────────────────────────────────
+    # Time-stop
+    # ─────────────────────────────────────────────────────
+    def _exceeded_max_hold(self, sig: Signal) -> bool:
+        """True si el trade lleva abierto más de max_hold_bars × timeframe."""
+        cfg = self.risk.symbols.get(sig.symbol)
+        if cfg is None or not cfg.risk.max_hold_bars:
+            return False
+        tf_min = _TF_MINUTES.get(cfg.timeframe, 15)
+        opened = sig.placed_at_utc or sig.timestamp_utc
+        if opened.tzinfo is None:
+            opened = opened.replace(tzinfo=timezone.utc)
+        age_min = (datetime.now(timezone.utc) - opened).total_seconds() / 60.0
+        return age_min > cfg.risk.max_hold_bars * tf_min
+
+    @staticmethod
+    def _close_position_market(pos) -> bool:
+        """Cierra una posición abierta a mercado (orden opuesta con position=)."""
+        import MetaTrader5 as mt5  # type: ignore[import-not-found]
+
+        tick = mt5.symbol_info_tick(pos.symbol)
+        if tick is None:
+            return False
+        closing_buy = pos.type == mt5.POSITION_TYPE_SELL
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": pos.symbol,
+            "volume": float(pos.volume),
+            "type": mt5.ORDER_TYPE_BUY if closing_buy else mt5.ORDER_TYPE_SELL,
+            "position": pos.ticket,
+            "price": tick.ask if closing_buy else tick.bid,
+            "deviation": 30,
+            "magic": pos.magic,
+            "comment": "triarch:time-stop",
+            "type_time": mt5.ORDER_TIME_GTC,
+        }
+        # Filling adaptivo: probar FOK → IOC → RETURN (igual criterio que AutoExecutor).
+        for filling in (mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_RETURN):
+            request["type_filling"] = filling
+            result = mt5.order_send(request)
+            if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
+                return True
+            if result is not None and result.retcode != 10030:
+                logger.warning(
+                    f"time-stop close falló: retcode={result.retcode} {result.comment}"
+                )
+                return False
+        return False
 
     # ─────────────────────────────────────────────────────
     # Internals

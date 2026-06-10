@@ -21,9 +21,10 @@
 <section class="splash" id="splash">
     <div class="splash-inner">
         <div class="splash-brand">TRIARCH</div>
+        <div><span class="splash-sub">Systematic Trading · MT5</span></div>
         <div class="splash-tag">
             Bot sistemático sobre MetaTrader 5 — multi-activo, multi-estrategia,
-            con auditoría forense de cada decisión.
+            con auditoría forense de cada decisión y señales en vivo.
         </div>
         <div class="splash-points">
             <div class="splash-point">
@@ -78,16 +79,23 @@
             <div class="side-mini"><code>python -m scripts.export_web</code></div>
         </div>
 
-        <div class="side-footer">v0.4 · UI v4 · Crimson Black · static</div>
+        <div class="side-footer">v0.10 · UI v5 · Crimson Pro</div>
     </aside>
 
     <!-- ─── Main ─── -->
     <main class="main">
 
         <div class="header">
-            <h1 class="title">🤖 <span class="accent">TRIARCH</span> Bot</h1>
-            <div class="subtitle" id="header-subtitle">Cargando configuración…</div>
-            <div class="side-mini" id="header-stamp" style="margin-top:8px"></div>
+            <div class="header-row">
+                <div>
+                    <h1 class="title"><span class="accent">TRIARCH</span> · Trading Bot</h1>
+                    <div class="subtitle" id="header-subtitle">Cargando configuración…</div>
+                </div>
+                <div style="text-align:right">
+                    <span class="live-chip off" id="live-chip"><span class="pulse"></span><span id="live-chip-text">Conectando…</span></span>
+                    <div class="side-mini" id="header-stamp" style="margin-top:8px"></div>
+                </div>
+            </div>
         </div>
 
         <div class="banner info" id="data-source-banner" style="display:none">
@@ -98,6 +106,7 @@
         <!-- ═══ Tabs ═══ -->
         <div class="tabs">
             <button class="tab active" data-tab="home">🏠 Inicio</button>
+            <button class="tab" data-tab="signals">📡 Señales</button>
             <button class="tab" data-tab="live">🎯 Vivo & Control</button>
             <button class="tab" data-tab="decisions">🧠 Decisiones</button>
             <button class="tab" data-tab="backtest">📊 Backtesting</button>
@@ -123,6 +132,38 @@
             <p class="section-caption" style="margin-top:16px">
                 Para tomar acciones (toggles, filtros) ir a las otras pestañas.
             </p>
+        </section>
+
+        <!-- ═══ Tab — Señales (feed estilo Telegram) ═══ -->
+        <section class="tab-panel" data-panel="signals">
+            <h2 class="section-title">Feed de señales</h2>
+            <p class="section-caption">
+                Las mismas señales que llegan a Telegram, en vivo. Cada tarjeta muestra
+                entrada, stop, take-profit, riesgo/beneficio y el estado actual de la operación.
+            </p>
+
+            <div class="filter-bar">
+                <div class="filter">
+                    <label>Activo</label>
+                    <select id="feed-symbol"></select>
+                </div>
+                <div class="filter">
+                    <label>Mostrar</label>
+                    <select id="feed-scope">
+                        <option value="actionable">Señales operables (como Telegram)</option>
+                        <option value="open">Posiciones abiertas</option>
+                        <option value="closed">Cerradas (con resultado)</option>
+                        <option value="all">Todo (incluye rechazadas)</option>
+                    </select>
+                </div>
+                <div class="filter">
+                    <label>Últimos N días</label>
+                    <input type="number" id="feed-days" value="14" min="1" max="365">
+                </div>
+            </div>
+
+            <div class="sig-count" id="feed-count"></div>
+            <div class="sig-feed" id="feed-list"></div>
         </section>
 
         <!-- ═══ Tab 2 — Vivo & Control ═══ -->

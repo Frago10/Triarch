@@ -40,6 +40,7 @@
 #  §20  Setup de notificaciones por Telegram (v0.9.1) — 2026-05-31
 #  §21  Fix gate RR (float) + data refresh + visibilidad Telegram (v0.9.2) — 2026-06-03
 #  §22  Servicio live (Tarea Programada) + dashboard auto-publicado (v0.9.3) — 2026-06-03
+#  §23  Calibración v0.10: time-stop + oro M15 + AUTO total + UI v5 — 2026-06-09
 ################################################################################
 
 
@@ -96,6 +97,12 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 >>> 10 min (https://frago10.github.io/Triarch/). Gestionar con
 >>> scripts/install_service.ps1 -Action status|start|stop|uninstall.
 >>> Requisito: MT5 abierto y con auto-login al arrancar Windows.
+>>>
+>>> v0.10 (2026-06-09, §23): calibración mayor — time-stop por activo (trades
+>>> de ~30min-2.6h, no días), oro M30→M15, EURUSD sin PULLBACK (PF 2.23), los
+>>> 3 ACTIVOS EN AUTO (switch en runtime.yaml sigue mandando), UI v5 "Crimson
+>>> Pro" con pestaña Señales estilo Telegram + auto-refresh. Backtest validado:
+>>> NAS 1.35 / XAU 1.38 / EUR 2.23 de PF con walk-forward consistente.
 
 Fecha: 2026-05-14
 
@@ -1929,6 +1936,104 @@ ARCHIVOS TOCADOS (v0.9.3)
     engine/orchestrator.py        — llama sync_open_positions en __init__.
     data/ohlc/*, data/state.json (+docs) — refrescados a hoy y publicados.
     contexto.txt                  — este §22.
+
+################################################################################
+#  §23  CALIBRACIÓN v0.10: TIME-STOP + ORO M15 + AUTO TOTAL + UI v5 — 2026-06-09
+################################################################################
+
+PEDIDO DEL USUARIO
+    "Investiga qué funciona mejor por activo, itera cambio→backtest→validación
+     hasta lo más ganador y sustentable. Trades CORTOS (~1.5h, no días).
+     AUTO para todos los activos (con el switch para apagar). Interfaz
+     profesional para presentar a usuarios + pestaña de Señales como Telegram."
+
+INVESTIGACIÓN (síntesis aplicada)
+    · Índices: ORB validado académicamente (Concretum 2016-2023, Sharpe 2.81)
+      SIEMPRE con salida basada en tiempo — los time-exits son parte del edge.
+    · Oro: momentum/breakout en sesión Londres+NY; tendencias persistentes.
+    · EURUSD intradía M5: la evidencia favorece mean-reversion (VWAP) sobre
+      momentum — coincide con nuestro backtest (VWAP_MR era el dominante).
+    · La pieza faltante para "trades cortos": TIME-STOP. El oro retenía
+      posiciones ~23h en promedio (46.8 velas M30).
+
+NUEVA INFRAESTRUCTURA
+    · config/settings.py — RiskOverride.max_hold_bars (None = sin límite).
+    · scripts/backtest.py — _resolve_trade respeta max_hold (TIMEOUT = cierre
+      a mercado en la vela N, igual que el live).
+    · executor/trade_monitor.py — time-stop EN VIVO: _exceeded_max_hold() +
+      _close_position_market() cierran la posición al exceder max_hold_bars ×
+      timeframe. Booking inmediato vía _close_signal.
+    · scripts/sweep.py — NUEVO: harness de calibración. Variantes por activo
+      (estrategias/sesión/hold/RR/TF) + walk-forward (split 2026-02-01) que
+      divide el trade_log en in-sample/out-of-sample SIN re-correr (3x rápido).
+    · assets/js/bt-engine.js — paridad: maxHoldBars + epsilon RR (float fix).
+      export_ohlc.py exporta max_hold_bars; app.js lo pasa al engine.
+
+RESULTADOS DEL SWEEP (1 año data real, validación walk-forward IS/OOS)
+    NAS100  — GANADOR: hold 8 velas M15 (2h máx)
+        base:  236tr WR41% PF1.24 DD17.0R bars27 (6.8h) | IS 1.25 / OOS 1.21
+        hold8: 236tr WR52% PF1.35 DD10.4R bars6.6 (1.6h) | IS 1.30 / OOS 1.40 ★
+    XAUUSD  — GANADOR: cambiar M30→M15 + hold 12 (3h máx)
+        M30 base:    253tr WR36% PF1.14 DD17.5R bars47 (23h!) | IS 1.20 / OOS 1.03
+        M15+hold12:  256tr WR52% PF1.38 DD9.2R  bars10.5 (2.6h)| IS 1.35 / OOS 1.47 ★
+        (hold corto en M30 mataba el edge: PF<=1.10 en todas las variantes M30)
+    EURUSD  — GANADOR: QUITAR PULLBACK_TREND + hold 18 velas M5 (1.5h máx)
+        base:        174tr WR37% PF1.52 DD21.1R | IS 1.42 / OOS 1.75
+        sin PB+h18:   64tr WR48% PF2.23 DD7.2R bars5.7 (~30min) | IS 2.22 / OOS 2.25 ★
+        (PULLBACK era la más elegida por confluencia pero diluía el edge)
+
+CONFIG FINAL v0.10 (symbols.yaml) — backtest de validación año completo:
+    NAS100 M15  hold8  : 236tr · WR 51.7% · PF 1.35 · Sharpe 1.89 · SQN 1.83 · DD 10.4R · ~1.6h/trade
+    XAUUSD M15  hold12 : 256tr · WR 51.9% · PF 1.38 · Sharpe 1.83 · SQN 1.85 · DD 9.2R  · ~2.6h/trade
+    EURUSD M5   hold18 :  64tr · WR 48.4% · PF 2.23 · Sharpe 4.55 · SQN 2.29 · DD 7.2R  · ~30min/trade
+    Los tres rentables, walk-forward consistente (OOS ≥ IS en los tres),
+    duraciones en el rango pedido. EURUSD: pocas señales pero E=+0.617R/trade.
+
+AUTO TOTAL
+    · symbols.yaml: mode: AUTO + take_trades: true en los 3 activos.
+    · runtime.yaml: los 3 en true. El switch del dashboard Streamlit sigue
+      funcionando: toggle OFF → orchestrator fuerza SIGNAL_ONLY en el próximo tick.
+    · Verificado con run_live --once: "AUTO 🟢 EJECUTA ÓRDENES" en los 3 +
+      oro evaluando velas M15 + aviso Telegram con los modos nuevos.
+    · OJO: XAUUSD ahora M15 → el parquet es XAUUSD_M15.parquet (ya bajado);
+      fetch_history usa el TF del yaml automáticamente.
+
+UI v5 "CRIMSON PRO" (sitio estático, antes "muy beta")
+    · assets/css/styles.css — REESCRITO: design tokens, glassmorphism sutil,
+      tabs segmentados con píldora gradiente, KPIs/cards con barra de acento y
+      hover lift, tablas con sticky header, scrollbar custom, responsive mobile,
+      prefers-reduced-motion. Mismas clases → renders existentes intactos.
+    · NUEVA pestaña "📡 Señales": feed estilo Telegram con tarjetas
+      (entrada/SL/TP/RR/score en mono, badge LONG/SHORT, pill de estado con
+      color semántico en la barra lateral de la tarjeta, separadores por día,
+      PnL si cerró, ticket si se ejecutó). Filtros: activo / alcance
+      (operables=lo que manda Telegram, abiertas, cerradas, todo) / días.
+    · Header con chip "EN VIVO" (verde pulsante si el snapshot < 25 min;
+      si no muestra "Último: hace Xh") + AUTO-REFRESH: la página re-fetchea
+      state.json cada 2 min y re-renderiza sidebar/header/inicio/vivo/señales
+      sin recargar ni perder filtros.
+    · fmtPrice(): precios con decimales por magnitud (FX 5, índices/oro 2) —
+      antes el feed mostraba floats de 16 dígitos.
+    · Verificado con preview browser: splash, dashboard, feed, mobile (375px),
+      0 errores de consola. Mirror completo a docs/.
+
+ARCHIVOS TOCADOS (v0.10)
+    config/settings.py, config/symbols.yaml, config/runtime.yaml
+    scripts/backtest.py, scripts/sweep.py (nuevo), scripts/export_ohlc.py
+    executor/trade_monitor.py
+    assets/{css/styles.css, js/app.js, js/bt-engine.js}, index.html (+mirror docs/)
+    logs/sweep_{nas,xau,xau2,eur}.txt, logs/bt_v010_final.txt (evidencia)
+    contexto.txt — este §23.
+
+PENDIENTE / VIGILAR
+    · Primera semana de AUTO total en demo: vigilar que el time-stop live cierre
+      bien las posiciones (log "⏱ Time-stop") y que los 3 activos respeten caps.
+    · EURUSD da ~2.7 señales/sem — es POCO pero de alta calidad (PF 2.23). Si se
+      quiere más volumen, la palanca es añadir estrategias al pool y re-sweep,
+      NO aflojar la confluencia (2/1 da PF 1.09, destruye el edge — ver §19).
+    · Re-correr scripts.sweep cada 1-2 meses para detectar drift de régimen.
+    · El JS engine tiene paridad de reglas pero sus señales son aproximadas vs
+      Python (matices de implementación) — para decisiones usar scripts.backtest.
 
 ################################################################################
 #  FIN — actualizar §03, §10 y §11 al final de cada sesión

@@ -41,8 +41,8 @@ NAS100:
   description: Nasdaq 100 CFD
   family: index
   timeframe: M15
-  mode: SIGNAL_ONLY
-  take_trades: false
+  mode: AUTO                     # v0.10 — los 3 activos en AUTO (switch en runtime.yaml)
+  take_trades: true
   profile: balanced
   target_trades_wk: 5            # tras calibración v0.7 — backtest real da ~5/sem con PF mejorado
   session_utc:
@@ -53,6 +53,9 @@ NAS100:
     max_consec_losses: 3
     max_trades_per_day: 6        # ajustado tras backtest real (era 8 — daba 4.86/sem ya)
     min_rr_ratio: 1.5
+    # v0.10 sweep: hold 8 velas M15 = 2h máx → PF 1.24→1.35, WR 41→52%,
+    # DD 17→10.4R, duración media ~1.6h. Walk-forward IS 1.30 / OOS 1.40.
+    max_hold_bars: 8
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.5
@@ -99,19 +102,23 @@ XAUUSD:
   broker_symbol: XAUUSD
   description: Gold spot (oro) — quality profile, pocos trades, alta calidad
   family: commodity
-  timeframe: M30
-  mode: AUTO                     # v0.8 — ÚNICO activo en AUTO (ejecuta órdenes reales en demo)
+  timeframe: M15                 # v0.10 — M30→M15: granularidad fina para trades cortos.
+                                 # Sweep: M15+hold12 → PF 1.14→1.38, WR 36→52%, DD 17.5→9.2R,
+                                 # duración 23h→2.6h. Walk-forward IS 1.35 / OOS 1.47.
+  mode: AUTO
   take_trades: true             # default ON; el runtime.yaml puede apagarlo desde el dashboard
   profile: quality
-  target_trades_wk: 3
+  target_trades_wk: 4
   session_utc:
     start: "08:00"
     end: "20:00"
   risk:
     max_daily_loss_pct: 1.5
     max_consec_losses: 2
-    max_trades_per_day: 1         # 1 trade/día = max 5/sem. Con conf 2/2 sale ~3-4/sem.
+    max_trades_per_day: 1         # 1 trade/día = max 5/sem. Con conf 2/2 sale ~4-5/sem.
     min_rr_ratio: 2.2
+    # Time-stop 12 velas M15 = 3h máx por trade (antes el oro retenía ~23h).
+    max_hold_bars: 12
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.75
@@ -161,13 +168,13 @@ XAUUSD:
 # ─────────────────────────────────────────────────────────
 EURUSD:
   broker_symbol: EURUSD                 # casi siempre "EURUSD" exacto
-  description: EUR/USD spot — scalper + algo de calidad
+  description: EUR/USD spot — scalper de precisión (pocas señales, alta calidad)
   family: fx
   timeframe: M5
-  mode: SIGNAL_ONLY
-  take_trades: false
+  mode: AUTO                            # v0.10 — los 3 activos en AUTO (switch en runtime.yaml)
+  take_trades: true
   profile: scalper
-  target_trades_wk: 25                  # ajustado tras backtest — 2590 trades/año = 50/sem sin filtros
+  target_trades_wk: 3                   # v0.10 — calidad sobre volumen: PF 2.23 con ~2.7/sem
   session_utc:
     start: "06:30"
     end: "17:00"
@@ -176,6 +183,9 @@ EURUSD:
     max_consec_losses: 5
     max_trades_per_day: 8
     min_rr_ratio: 0.8                   # vuelta a 0.8 — subirlo rompió las strats scalper
+    # v0.10 sweep: hold 18 velas M5 = 1.5h máx → con el pool sin PULLBACK:
+    # PF 2.23, WR 48%, DD 7.2R, ~30min/trade. Walk-forward IS 2.22 / OOS 2.25.
+    max_hold_bars: 18
   position_sizing:
     method: risk_pct
     risk_per_trade_pct: 0.25
@@ -194,9 +204,10 @@ EURUSD:
     min_signals: 2                      # SUBIDO de 1 a 2 — el problema en EURUSD era falta de filtro
     min_families: 2
     min_combined_score: 1.0
+  # ─── v0.10: PULLBACK_TREND QUITADA — el sweep mostró que era la más elegida
+  #     por confluencia pero diluía el edge (PF 1.52→2.23 al quitarla con hold 18).
   strategies:
-    - PULLBACK_TREND     # trend      — el único ganador consistente (+36R en pasada 1)
-    - EMA_MOMENTUM       # trend      — pullback estricto, complementa
+    - EMA_MOMENTUM       # trend      — pullback estricto
     - SCALPER            # trend      — gatillo scalper (con conf 2/2 solo entra cuando otra confirma)
     - MACD_CROSS         # trend      — momentum (con conf filtra los falsos)
     - VWAP_MR            # mean       — diversidad de familia (necesaria para 2 families)

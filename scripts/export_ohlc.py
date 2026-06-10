@@ -149,6 +149,7 @@ def export_symbol(name: str, years: int | None = None) -> Path | None:
         },
         "min_rr": cfg.risk.min_rr_ratio,
         "max_trades_per_day": cfg.risk.max_trades_per_day,
+        "max_hold_bars": cfg.risk.max_hold_bars,
         "strategies": list(cfg.strategies),
         "confluence": {
             "min_signals": cfg.confluence.min_signals if cfg.confluence else 2,

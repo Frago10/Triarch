@@ -97,6 +97,10 @@ class RiskOverride(BaseModel):
     max_consec_losses: int = 3
     max_trades_per_day: int = 5
     min_rr_ratio: float = 1.5
+    # Time-stop: máximo de velas que un trade puede estar abierto. Cumplido el
+    # límite, se cierra a mercado (backtest Y live). None = sin límite.
+    # Pedido del usuario: trades intradía cortos (~1-2h), no posiciones de días.
+    max_hold_bars: int | None = None
 
 
 class PositionSizing(BaseModel):

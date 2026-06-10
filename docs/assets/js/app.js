@@ -91,6 +91,12 @@ function fmtPct(n) {
     if (n === null || n === undefined || Number.isNaN(n)) return '—';
     return (Number(n) * 100).toFixed(1) + '%';
 }
+function fmtPrice(n) {
+    /* Precio con decimales según magnitud: FX (≈1.x) → 5, índices/oro → 2. */
+    if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+    const v = Number(n);
+    return Math.abs(v) >= 50 ? v.toFixed(2) : v.toFixed(5);
+}
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -202,13 +208,129 @@ function renderHeader(data) {
     $('#header-subtitle').innerHTML = `
         Entorno <b>${(s.env || 'demo').toUpperCase()}</b> ·
         Modo defecto <b>${s.default_mode || 'SIGNAL_ONLY'}</b> ·
-        Confluencia defecto ${s.conf_min_signals ?? 2} señales /
+        Confluencia ${s.conf_min_signals ?? 2} señales /
         ${s.conf_min_families ?? 2} familias /
         score ≥ ${s.conf_min_score ?? 0.5}
     `;
     if (data.meta && data.meta.generated_at) {
-        $('#header-stamp').textContent = `Estado generado: ${friendlyDate(data.meta.generated_at)}`;
+        $('#header-stamp').textContent = `Snapshot: ${friendlyDate(data.meta.generated_at)}`;
+        /* Chip EN VIVO: el bot publica cada ~10 min. Si el snapshot tiene
+           menos de 25 min, el bot está vivo; si no, mostrar último estado. */
+        const ageMin = (Date.now() - new Date(data.meta.generated_at).getTime()) / 60000;
+        const chip = $('#live-chip');
+        if (chip) {
+            const live = ageMin >= 0 && ageMin < 25;
+            chip.classList.toggle('off', !live);
+            $('#live-chip-text').textContent = live
+                ? 'En vivo'
+                : `Último: hace ${Math.round(ageMin / 60) > 0 ? Math.round(ageMin / 60) + ' h' : Math.round(ageMin) + ' min'}`;
+        }
     }
+}
+
+/* ═══════════════ Tab — Señales (feed estilo Telegram) ═══════════════ */
+const FEED_SCOPES = {
+    actionable: r => !((r.status || '').startsWith('REJECTED')) && r.status !== 'FAILED',
+    open: r => ['PLACED', 'FILLED'].includes(r.status),
+    closed: r => (r.status || '').startsWith('CLOSED'),
+    all: () => true,
+};
+let FEED_WIRED = false;
+
+function signalCardColor(status) {
+    if (!status) return '';
+    if (status.startsWith('CLOSED_TP')) return 's-green';
+    if (status === 'CLOSED_SL' || status === 'FAILED') return 's-red';
+    if (status.startsWith('REJECTED')) return 's-orange';
+    if (['NEW', 'APPROVED', 'PLACED', 'FILLED'].includes(status)) return 's-blue';
+    return '';
+}
+
+function renderSignalsFeed(data) {
+    const syms = Object.keys(data.symbols || {});
+    const sel = $('#feed-symbol');
+    if (!sel) return;
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">(todos)</option>' + syms.map(s => `<option>${s}</option>`).join('');
+    if (keep) sel.value = keep;
+
+    function paint() {
+        const symF = sel.value;
+        const scope = $('#feed-scope').value || 'actionable';
+        const days = parseInt($('#feed-days').value, 10) || 14;
+        const since = Date.now() - days * 86400e3;
+
+        let rows = (data.signals || [])
+            .filter(r => new Date(r.timestamp_utc).getTime() >= since)
+            .filter(FEED_SCOPES[scope] || FEED_SCOPES.actionable);
+        if (symF) rows = rows.filter(r => r.symbol === symF);
+        rows = rows.slice(0, 120);
+
+        $('#feed-count').textContent = rows.length
+            ? `${rows.length} señal${rows.length === 1 ? '' : 'es'} · últimos ${days} días`
+            : '';
+
+        const list = $('#feed-list');
+        if (!rows.length) {
+            list.innerHTML = `<div class="empty">
+                <div class="emoji">📡</div>
+                <div>Sin señales en este rango.</div>
+                <div class="mini">El bot emite cuando ≥2 estrategias de familias distintas coinciden y el riesgo lo aprueba — calidad sobre cantidad.</div>
+            </div>`;
+            return;
+        }
+
+        let prevDay = '';
+        let htmlOut = '';
+        rows.forEach(r => {
+            const d = new Date(r.timestamp_utc);
+            const dayKey = d.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' });
+            if (dayKey !== prevDay) {
+                htmlOut += `<div class="sig-day-sep">${dayKey}</div>`;
+                prevDay = dayKey;
+            }
+            const [stText, stColor] = friendlyStatus(r.status);
+            const dirCls = (r.direction === 'LONG') ? 'long' : 'short';
+            const dirIcon = (r.direction === 'LONG') ? '▲' : '▼';
+            const reason = friendlyReject(r.reject_reason);
+            const pnl = r.pnl_money;
+            const pnlHtml = (typeof pnl === 'number')
+                ? `<span class="sig-pnl ${pnl >= 0 ? 'pos' : 'neg'}">${fmtSigned(pnl)} USD</span>` : '';
+            const ticket = r.mt5_ticket ? `<span class="sig-strat">ticket ${r.mt5_ticket}</span>` : '';
+            htmlOut += `
+            <div class="sig-card ${signalCardColor(r.status)}">
+                <div class="sig-top">
+                    <div class="sig-id">
+                        <span class="sig-sym">${r.symbol}</span>
+                        <span class="sig-dir ${dirCls}">${dirIcon} ${r.direction}</span>
+                        <span class="sig-strat">${r.strategy} · ${r.timeframe || ''}</span>
+                    </div>
+                    <span class="sig-time">${friendlyDate(r.timestamp_utc)}</span>
+                </div>
+                <div class="sig-levels">
+                    <div class="sig-level"><div class="l">Entrada</div><div class="v">${fmtPrice(r.entry)}</div></div>
+                    <div class="sig-level"><div class="l">Stop loss</div><div class="v sl">${fmtPrice(r.stop_loss)}</div></div>
+                    <div class="sig-level"><div class="l">Take profit</div><div class="v tp">${fmtPrice(r.take_profit_1)}</div></div>
+                    <div class="sig-level"><div class="l">R : R</div><div class="v">${fmt(r.rr_ratio)}</div></div>
+                    <div class="sig-level"><div class="l">Score</div><div class="v">${fmt(r.score)}</div></div>
+                </div>
+                <div class="sig-foot">
+                    <div>${pill(stText, stColor)} ${ticket}</div>
+                    ${pnlHtml || (reason ? `<span class="sig-reason">${reason}</span>` : '')}
+                </div>
+            </div>`;
+        });
+        list.innerHTML = htmlOut;
+    }
+
+    if (!FEED_WIRED) {
+        FEED_WIRED = true;
+        ['#feed-symbol', '#feed-scope', '#feed-days'].forEach(s => {
+            $(s).addEventListener('change', paint);
+            $(s).addEventListener('input', paint);
+        });
+    }
+    paint();
 }
 
 /* ═══════════════ Tab 1 — Inicio ═══════════════ */
@@ -258,7 +380,7 @@ function renderHome(data) {
         if (last) {
             lastLine = `<div class="side-mini" style="margin-top:10px">
                 Última: ${friendlyDate(last.timestamp_utc)}<br>
-                ${last.strategy} ${last.direction} @ <code>${last.entry}</code>
+                ${last.strategy} ${last.direction} @ <code>${fmtPrice(last.entry)}</code>
             </div>`;
         }
         container.appendChild(html(`
@@ -305,7 +427,7 @@ function renderLive(data) {
             const rej = friendlyReject(last.reject_reason);
             lastBlock = `
                 <div style="margin-top:10px"><b>Última señal:</b> ${friendlyDate(last.timestamp_utc)} ·
-                    ${last.strategy} · <b>${last.direction}</b> @ <code>${last.entry}</code> ·
+                    ${last.strategy} · <b>${last.direction}</b> @ <code>${fmtPrice(last.entry)}</code> ·
                     RR <code>${fmt(last.rr_ratio)}</code> · score <code>${fmt(last.score)}</code>
                 </div>
                 <div style="margin-top:8px">${pill(stText, stColor)}</div>
@@ -396,9 +518,9 @@ function renderDecisions(data) {
                 <td>${r.symbol || ''}</td>
                 <td>${r.strategy || ''}</td>
                 <td>${r.direction || ''}</td>
-                <td class="num">${r.entry ?? ''}</td>
-                <td class="num">${r.stop_loss ?? ''}</td>
-                <td class="num">${r.take_profit_1 ?? ''}</td>
+                <td class="num">${fmtPrice(r.entry)}</td>
+                <td class="num">${fmtPrice(r.stop_loss)}</td>
+                <td class="num">${fmtPrice(r.take_profit_1)}</td>
                 <td class="num">${fmt(r.rr_ratio)}</td>
                 <td class="num">${fmt(r.score)}</td>
                 <td>${stText}</td>
@@ -701,6 +823,7 @@ async function runInteractiveBacktest(data) {
                 confluence: ohlc.confluence,
                 minRR: ohlc.min_rr,
                 maxTradesDay: ohlc.max_trades_per_day,
+                maxHoldBars: ohlc.max_hold_bars,
                 fromTs, toTs,
             });
             const ms = Math.round(performance.now() - t0);
@@ -1060,7 +1183,30 @@ function renderData(data) {
     renderStats();
 }
 
-/* ═══════════════ Boot ═══════════════ */
+/* ═══════════════ Boot + auto-refresh ═══════════════ */
+const REFRESH_EVERY_MS = 120000;  // el bot publica cada ~10 min; refrescamos cada 2
+
+async function refreshLiveData() {
+    /* Re-fetch silencioso del state.json → actualiza las vistas "live" sin
+       recargar la página ni perder los filtros del usuario. */
+    try {
+        const res = await fetch('./data/state.json?v=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (STATE && STATE.meta && data.meta &&
+            data.meta.generated_at === STATE.meta.generated_at) {
+            renderHeader(data);  // refresca el chip aunque no haya snapshot nuevo
+            return;
+        }
+        STATE = data;
+        renderSidebar(data);
+        renderHeader(data);
+        renderHome(data);
+        renderLive(data);
+        renderSignalsFeed(data);
+    } catch (e) { /* silencioso — reintenta en el próximo ciclo */ }
+}
+
 async function boot() {
     setupSplash();
     setupTabs();
@@ -1073,10 +1219,12 @@ async function boot() {
         renderSidebar(data);
         renderHeader(data);
         renderHome(data);
+        renderSignalsFeed(data);
         renderLive(data);
         renderDecisions(data);
         renderBacktest(data);
         renderData(data);
+        setInterval(refreshLiveData, REFRESH_EVERY_MS);
     } catch (e) {
         console.error(e);
         document.querySelector('.main').innerHTML = `
