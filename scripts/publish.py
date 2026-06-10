@@ -87,7 +87,7 @@ def publish_full(years: int = 1, include_mt5: bool = True) -> bool:
     """Refresh pesado: histórico + backtest snapshot + OHLC + state. Una vez al día."""
     try:
         from scripts.fetch_history import main as fetch_main
-        from scripts.export_ohlc import export_symbol
+        from scripts.export_ohlc import main as ohlc_main
         from scripts.export_web import export_state
         from scripts.backtest import backtest_symbol
         from config.settings import get_settings, get_symbols
@@ -124,12 +124,20 @@ def publish_full(years: int = 1, include_mt5: bool = True) -> bool:
         json.dumps(results, indent=2, default=str, ensure_ascii=False), encoding="utf-8"
     )
 
-    # 3. OHLC para el backtester interactivo del sitio
-    for name in symbols:
-        try:
-            export_symbol(name, years=years)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"[publish] export_ohlc {name} falló: {exc}")
+    # 3. OHLC para el backtester interactivo del sitio.
+    #    Usamos el main() completo (no export_symbol por símbolo) porque es el
+    #    único que regenera el manifest.json con los "ranges" — sin eso la web
+    #    sigue mostrando el span/timeframe viejo y los presets fallan.
+    old_argv = sys.argv
+    sys.argv = ["export_ohlc"]
+    try:
+        ohlc_main()
+    except SystemExit:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[publish] export_ohlc falló: {exc}")
+    finally:
+        sys.argv = old_argv
 
     # 4. state.json
     try:
