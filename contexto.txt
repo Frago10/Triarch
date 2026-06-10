@@ -2014,6 +2014,14 @@ UI v5 "CRIMSON PRO" (sitio estático, antes "muy beta")
       sin recargar ni perder filtros.
     · fmtPrice(): precios con decimales por magnitud (FX 5, índices/oro 2) —
       antes el feed mostraba floats de 16 dígitos.
+    · Tab Backtesting: arriba "Resultados oficiales (motor Python)" (tabla desde
+      state.json backtest_results) y debajo el simulador JS etiquetado como
+      aproximado. Motivo: con time-stop corto la mayoría de trades resuelve por
+      TIMEOUT y las micro-diferencias entrada/SL del port JS se amplifican
+      (XAU JS daba WR 33% vs 52% Python con counts casi iguales). Los números
+      de cara al usuario son SIEMPRE los del Python.
+    · loadState() con 3 reintentos para state.json — se reescribe en caliente
+      cada 10 min y un fetch podía pillarlo a medias → caía al sample.json.
     · Verificado con preview browser: splash, dashboard, feed, mobile (375px),
       0 errores de consola. Mirror completo a docs/.
 

@@ -244,12 +244,20 @@
 
         <!-- ═══ Tab 4 — Backtesting ═══ -->
         <section class="tab-panel" data-panel="backtest">
-            <h2 class="section-title">Backtesting interactivo (corre en tu navegador)</h2>
+            <h2 class="section-title">Resultados oficiales (motor Python)</h2>
             <p class="section-caption">
-                El motor de backtest está portado a JavaScript y corre directamente en el browser.
-                Carga los OHLC históricos pre-calculados (<code>data/ohlc/&lt;symbol&gt;.json</code>),
-                aplica las estrategias del activo en el rango temporal elegido, y reporta WR, PF,
-                Sharpe, Sortino, SQN, equity curve y trade log — sin tocar el servidor.
+                Última calibración validada sobre 1 año de datos MT5 reales, con
+                gestión de riesgo completa y time-stop por activo.
+            </p>
+            <div id="bt-official"></div>
+
+            <hr class="section-divider">
+
+            <h2 class="section-title">Simulador interactivo (corre en tu navegador)</h2>
+            <p class="section-caption">
+                Motor aproximado portado a JavaScript: explora cualquier rango temporal al instante.
+                Las señales replican las reglas del bot, pero los resultados oficiales
+                son los del motor Python de arriba.
             </p>
 
             <div class="filter-bar">

@@ -124,15 +124,21 @@ function kpi(label, value, sub) {
 let STATE = null;
 
 async function loadState() {
+    /* state.json se reescribe en caliente cada ~10 min (publicación del bot):
+       un fetch puede pillarlo a medias. Reintentamos antes de caer al sample. */
     for (const url of DATA_URLS) {
-        try {
-            const res = await fetch(url, { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                console.log(`[triarch] loaded ${url}`);
-                return { data, source: url };
-            }
-        } catch (e) { /* fall through */ }
+        const attempts = url.endsWith('state.json') ? 3 : 1;
+        for (let i = 0; i < attempts; i++) {
+            try {
+                const res = await fetch(url + '?v=' + Date.now(), { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log(`[triarch] loaded ${url}`);
+                    return { data, source: url };
+                }
+            } catch (e) { /* retry / fall through */ }
+            if (i < attempts - 1) await new Promise(r => setTimeout(r, 700));
+        }
     }
     throw new Error('No se pudo cargar ningún archivo de datos.');
 }
@@ -717,7 +723,43 @@ function setBtRange(fromMs, toMs) {
     $('#bt-to').value = isoDay(toMs);
 }
 
+function renderOfficialBacktest(data) {
+    /* Tabla de resultados del motor Python (data_cache/backtest_last.json,
+       embebido en state.json). Son los números OFICIALES de la calibración. */
+    const wrap = $('#bt-official');
+    if (!wrap) return;
+    const results = (data.backtest_results || []).filter(r => r && !r.error && r.trades);
+    if (!results.length) {
+        wrap.innerHTML = `<div class="empty"><div class="emoji">📊</div>
+            <div>Aún no hay snapshot de backtest oficial.</div></div>`;
+        return;
+    }
+    const rows = results.map(r => {
+        const pf = (typeof r.profit_factor === 'number') ? fmt(r.profit_factor) : r.profit_factor;
+        return `<tr>
+            <td><b>${r.symbol}</b></td>
+            <td>${r.timeframe || ''}</td>
+            <td class="num">${r.trades}</td>
+            <td class="num">${fmtPct(r.win_rate)}</td>
+            <td class="num">${pf}</td>
+            <td class="num ${r.expectancy_r >= 0 ? 'pos' : 'neg'}">${fmtSigned(r.expectancy_r, 3)}</td>
+            <td class="num">${fmt(r.sharpe_ratio)}</td>
+            <td class="num">${fmt(r.sqn)}</td>
+            <td class="num">${fmt(r.max_drawdown_r)}</td>
+            <td class="num">${r.trades_per_week_avg ?? '—'}</td>
+        </tr>`;
+    }).join('');
+    wrap.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr>
+            <th>Activo</th><th>TF</th><th>Trades</th><th>Win rate</th><th>Profit factor</th>
+            <th>Expectancy (R)</th><th>Sharpe</th><th>SQN</th><th>Max DD (R)</th><th>Trades/sem</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
 function renderBacktest(data) {
+    renderOfficialBacktest(data);
     const sel = $('#bt-symbol-filter');
     const symsFromState = Object.keys(data.symbols || {});
 
