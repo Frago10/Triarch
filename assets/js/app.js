@@ -123,6 +123,49 @@ function kpi(label, value, sub) {
 /* ═══════════════ State global ═══════════════ */
 let STATE = null;
 
+/* ═══════════════ Control local del bot (switch funcional) ═══════════════
+   El bot corre un mini servidor en 127.0.0.1:8772 (scripts/control_server.py).
+   Si esta página se abre EN LA MÁQUINA DEL BOT, lo detectamos y los toggles
+   "Trades reales" se vuelven interactivos (escriben runtime.yaml al instante).
+   Desde otro dispositivo el fetch falla rápido y quedan en modo lectura. */
+const CONTROL_URL = 'http://127.0.0.1:8772';
+let CONTROL_ON = false;
+
+async function probeControl() {
+    try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 1500);
+        const res = await fetch(CONTROL_URL + '/status', { signal: ctl.signal, cache: 'no-store' });
+        clearTimeout(timer);
+        if (!res.ok) { CONTROL_ON = false; return null; }
+        const data = await res.json();
+        CONTROL_ON = !!data.ok;
+        return CONTROL_ON ? data : null;
+    } catch (e) {
+        CONTROL_ON = false;
+        return null;
+    }
+}
+
+async function toggleTakeTrades(symbol, value) {
+    const res = await fetch(CONTROL_URL + '/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, value }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+}
+
+/* Mergea el estado FRESCO del control (runtime.yaml ahora mismo) sobre el
+   snapshot exportado (que puede tener hasta 10 min). */
+function applyControlState(data, ctl) {
+    if (!ctl || !ctl.symbols || !data.symbols) return;
+    Object.entries(ctl.symbols).forEach(([name, st]) => {
+        if (data.symbols[name]) data.symbols[name].take_trades_live = st.take_trades;
+    });
+}
+
 async function loadState() {
     /* state.json se reescribe en caliente cada ~10 min (publicación del bot):
        un fetch puede pillarlo a medias. Reintentamos antes de caer al sample. */
@@ -419,6 +462,18 @@ function renderLive(data) {
         $('#live-account-metrics').innerHTML = `<div class="banner">⚠ Cuenta MT5 no presente en el snapshot.</div>`;
     }
 
+    /* Caption según haya o no control local conectado */
+    const cap = $('#live-ctl-caption');
+    if (cap) {
+        cap.innerHTML = CONTROL_ON
+            ? `🎛 <b style="color:var(--green)">Control conectado al bot.</b> Los switches son
+               FUNCIONALES: al cambiarlos se escribe <code>config/runtime.yaml</code> y el bot
+               lo aplica en el próximo tick (~30 s), sin reiniciar nada.`
+            : `Los switches están en <b>modo lectura</b> en este dispositivo (muestran el último
+               snapshot). Para controlarlos, abre este dashboard en la máquina donde corre el
+               bot — ahí se conectan automáticamente al control local.`;
+    }
+
     const syms = data.symbols || {};
     const signals = data.signals || [];
     const container = $('#live-assets');
@@ -440,6 +495,9 @@ function renderLive(data) {
                 ${rej ? `<div class="side-mini">Motivo: ${rej}</div>` : ''}
             `;
         }
+        const toggleTitle = CONTROL_ON
+            ? 'Click para activar/desactivar los trades reales de este activo'
+            : 'Solo lectura — abre el dashboard en la máquina del bot para controlarlo';
         container.appendChild(html(`
             <div class="card-bordered">
                 <div class="card-head">
@@ -452,8 +510,9 @@ function renderLive(data) {
                         </div>
                     </div>
                     <div style="text-align:right">
-                        <label class="toggle" title="Solo lectura — el toggle real vive en config/runtime.yaml">
-                            <input type="checkbox" ${liveTake ? 'checked' : ''} disabled>
+                        <label class="toggle ${CONTROL_ON ? 'toggle-live' : ''}" title="${toggleTitle}">
+                            <input type="checkbox" data-ctl-symbol="${name}"
+                                   ${liveTake ? 'checked' : ''} ${CONTROL_ON ? '' : 'disabled'}>
                             <span class="toggle-track"></span>
                             <span class="toggle-label">Trades reales en MT5</span>
                         </label>
@@ -464,6 +523,31 @@ function renderLive(data) {
             </div>
         `));
     });
+
+    /* Delegación (una sola vez): cambios en cualquier toggle → POST al control */
+    if (!renderLive._wired) {
+        renderLive._wired = true;
+        container.addEventListener('change', async (ev) => {
+            const input = ev.target.closest('input[data-ctl-symbol]');
+            if (!input || !CONTROL_ON) return;
+            const symbol = input.dataset.ctlSymbol;
+            const value = input.checked;
+            input.disabled = true;
+            try {
+                await toggleTakeTrades(symbol, value);
+                if (STATE && STATE.symbols && STATE.symbols[symbol]) {
+                    STATE.symbols[symbol].take_trades_live = value;
+                }
+                renderLive(STATE);
+                renderHome(STATE);
+            } catch (e) {
+                input.checked = !value;  // revertir si el control no respondió
+                input.disabled = false;
+                console.warn('[triarch] toggle falló:', e);
+                alert('No se pudo aplicar el cambio: ¿el bot está corriendo en esta máquina?');
+            }
+        });
+    }
 }
 
 /* ═══════════════ Tab 3 — Decisiones ═══════════════ */
@@ -809,7 +893,10 @@ function renderBacktest(data) {
             const anchor = DATA_TO != null ? DATA_TO : Date.now();
             const preset = btn.dataset.btPreset;
             let from;
-            if (preset === '1m') from = anchor - 30 * 86400e3;
+            if (preset === '2d') from = anchor - 2 * 86400e3;
+            else if (preset === '1w') from = anchor - 7 * 86400e3;
+            else if (preset === '2w') from = anchor - 14 * 86400e3;
+            else if (preset === '1m') from = anchor - 30 * 86400e3;
             else if (preset === '3m') from = anchor - 90 * 86400e3;
             else if (preset === '6m') from = anchor - 180 * 86400e3;
             else if (preset === 'ytd') from = new Date(new Date(anchor).getUTCFullYear(), 0, 1).getTime();
@@ -1241,6 +1328,8 @@ async function refreshLiveData() {
             return;
         }
         STATE = data;
+        const ctl = await probeControl();
+        applyControlState(data, ctl);
         renderSidebar(data);
         renderHeader(data);
         renderHome(data);
@@ -1258,6 +1347,9 @@ async function boot() {
         if (source.endsWith('sample.json')) {
             $('#data-source-banner').style.display = '';
         }
+        // Detectar el control local del bot ANTES de pintar (toggles funcionales)
+        const ctl = await probeControl();
+        applyControlState(data, ctl);
         renderSidebar(data);
         renderHeader(data);
         renderHome(data);

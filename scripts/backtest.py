@@ -155,20 +155,28 @@ def backtest_symbol(
         }
 
     df_full = pd.read_parquet(parquet_path).sort_values("time").reset_index(drop=True)
-    if from_date is not None:
-        df_full = df_full[df_full["time"] >= pd.Timestamp(from_date)].reset_index(
-            drop=True
-        )
-    if to_date is not None:
-        df_full = df_full[df_full["time"] <= pd.Timestamp(to_date)].reset_index(
-            drop=True
-        )
     if len(df_full) < MIN_BARS_FOR_EVAL + WARMUP_BARS:
         return {
             "symbol": cfg.name,
             "timeframe": cfg.timeframe,
             "error": f"Histórico insuficiente: {len(df_full)} velas.",
         }
+
+    # ─── RANGO FLEXIBLE: la serie va COMPLETA (indicadores y contexto intactos)
+    #     y el rango [from, to] limita solo la TOMA de señales. Antes se recortaba
+    #     el df y el warmup de 100 velas se comía los rangos cortos → "histórico
+    #     insuficiente" o 0 trades al pedir 2 días. Ahora sirve de 2 días a 2 años.
+    def _ts(d):
+        t = pd.Timestamp(d)
+        return t.tz_localize("UTC") if t.tzinfo is None else t
+
+    times = df_full["time"]
+    start_i = WARMUP_BARS
+    end_i = len(df_full) - 1
+    if from_date is not None:
+        start_i = max(start_i, int(times.searchsorted(_ts(from_date), side="left")))
+    if to_date is not None:
+        end_i = min(end_i, int(times.searchsorted(_ts(to_date), side="right")))
 
     logger.info(f"▶  Backtest {cfg.name} {cfg.timeframe} — {len(df_full)} velas")
 
@@ -209,7 +217,7 @@ def backtest_symbol(
             else (t >= sess_start or t <= sess_end)
         )
 
-    for i in range(WARMUP_BARS, len(df_full) - 1):
+    for i in range(start_i, end_i):
         window = df_ind.iloc[max(0, i - bar_lookback) : i + 1]
 
         ctx = StrategyContext(symbol_cfg=cfg, df=window)

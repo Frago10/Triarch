@@ -570,13 +570,12 @@ function runBacktest(options) {
     const cols = ohlc.columns;
     const bars = ohlc.rows.map(row => rowToBar(row, cols));
 
-    // Recortar por rango temporal
-    const filtered = bars.filter(b => {
-        if (fromTs && b.t < fromTs) return false;
-        if (toTs && b.t > toTs) return false;
-        return true;
-    });
-    if (filtered.length < 100) {
+    // FLEXIBILIDAD DE RANGO: NO recortamos la serie. Evaluamos sobre TODA la
+    // historia y filtramos por [fromTs, toTs] solo la TOMA de señales. Antes se
+    // recortaba primero y el warmup (100 velas) se comía los rangos cortos →
+    // "0 trades" al pedir 2 días aunque el bot hubiera operado ese día.
+    const filtered = bars;
+    if (filtered.length < 120) {
         return computeMetrics([], ohlc.symbol, ohlc.timeframe, ohlc.profile || 'balanced');
     }
 
@@ -590,6 +589,10 @@ function runBacktest(options) {
 
     for (let i = warmup; i < filtered.length - 1; i++) {
         const bar = filtered[i];
+        // Tomar señales SOLO dentro del rango pedido (la serie va completa para
+        // que el contexto de las estrategias no dependa del recorte).
+        if (fromTs && bar.t < fromTs) continue;
+        if (toTs && bar.t > toTs) break;   // serie ordenada → no hay más en rango
         const prev = filtered[i - 1];
         const atr = bar.atr;
 

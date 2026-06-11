@@ -29,7 +29,7 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 while ($true) {
     "$(Get-Date -Format o)  [service] arrancando bot..." | Out-File -FilePath $log -Append -Encoding utf8
-    & $py -m scripts.run_live --tick 30 --publish-every-min 10 --publish-full-every-min 1440 *>> $log
+    & $py -m scripts.run_live --tick 30 --publish-every-min 10 --publish-full-every-min 720 *>> $log
     "$(Get-Date -Format o)  [service] el bot salio (code=$LASTEXITCODE). Reintento en 30s." | Out-File -FilePath $log -Append -Encoding utf8
     Start-Sleep -Seconds 30
 }

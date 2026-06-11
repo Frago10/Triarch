@@ -390,8 +390,10 @@ details.card-bordered summary::marker { color: var(--red); }
 .radio-row label { font-size: .84rem; color: var(--tx-2); display: flex; gap: 6px; align-items: center; }
 .radio-row input[type="radio"] { accent-color: var(--red); }
 
-/* ═══════════════ Toggle (lectura) ═══════════════ */
+/* ═══════════════ Toggle (lectura por defecto; .toggle-live = funcional) ═══════════════ */
 .toggle { display: inline-flex; align-items: center; gap: 9px; cursor: default; }
+.toggle.toggle-live { cursor: pointer; }
+.toggle.toggle-live:hover .toggle-track { border-color: var(--red); box-shadow: 0 0 10px var(--red-glow); }
 .toggle input { display: none; }
 .toggle-track {
     width: 40px; height: 22px; border-radius: 999px; position: relative;

@@ -77,6 +77,12 @@ def main() -> int:
         action="store_true",
         help="No incluir la cuenta MT5 en el snapshot publicado (privacidad).",
     )
+    parser.add_argument(
+        "--control-port",
+        type=int,
+        default=8772,
+        help="Puerto del servidor de control local (switch web). 0 = desactivado.",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -95,6 +101,16 @@ def main() -> int:
         orch.send_startup_status()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"No se pudo enviar el aviso de arranque: {e}")
+
+    # Servidor de control local — hace funcional el switch "Trades reales" de la
+    # web cuando se abre en esta máquina (escribe runtime.yaml vía HTTP local).
+    if args.control_port:
+        try:
+            from scripts.control_server import start_control_server
+
+            start_control_server(args.control_port)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Control server no arrancó: {e}")
 
     if args.once:
         logger.info("Modo --once: ejecutando UN tick…")

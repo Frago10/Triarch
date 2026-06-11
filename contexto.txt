@@ -41,6 +41,7 @@
 #  §21  Fix gate RR (float) + data refresh + visibilidad Telegram (v0.9.2) — 2026-06-03
 #  §22  Servicio live (Tarea Programada) + dashboard auto-publicado (v0.9.3) — 2026-06-03
 #  §23  Calibración v0.10: time-stop + oro M15 + AUTO total + UI v5 — 2026-06-09
+#  §24  Switch web FUNCIONAL (control server) + backtest rango libre — 2026-06-11
 ################################################################################
 
 
@@ -103,6 +104,12 @@ Reglas que NUNCA se eliminan sin nota en la bitácora del proyecto:
 >>> 3 ACTIVOS EN AUTO (switch en runtime.yaml sigue mandando), UI v5 "Crimson
 >>> Pro" con pestaña Señales estilo Telegram + auto-refresh. Backtest validado:
 >>> NAS 1.35 / XAU 1.38 / EUR 2.23 de PF con walk-forward consistente.
+>>>
+>>> v0.10.1 (2026-06-11, §24): el switch "Trades reales" de la WEB ahora es
+>>> FUNCIONAL (control server local 127.0.0.1:8772 dentro del bot — abrir el
+>>> dashboard en la máquina del bot y los toggles escriben runtime.yaml al
+>>> instante) y el backtesting acepta CUALQUIER rango (2 días a 2 años; el
+>>> warmup ya no se come los rangos cortos). Presets 2D/1S/2S añadidos.
 
 Fecha: 2026-05-14
 
@@ -2042,6 +2049,84 @@ PENDIENTE / VIGILAR
     · Re-correr scripts.sweep cada 1-2 meses para detectar drift de régimen.
     · El JS engine tiene paridad de reglas pero sus señales son aproximadas vs
       Python (matices de implementación) — para decisiones usar scripts.backtest.
+
+################################################################################
+#  §24  SWITCH WEB FUNCIONAL (CONTROL SERVER) + BACKTEST RANGO LIBRE — 2026-06-11
+################################################################################
+
+PEDIDO DEL USUARIO
+    1. "El switch de trades reales no funciona — necesito activar/desactivar a
+       voluntad y que sea funcional."
+    2. "El backtesting de la app con el filtro de días tiene que ser flexible:
+       ayer el oro tomó una orden y el rango de 2 días dice 'sin trades'.
+       Quiero correrlo en las fechas que necesite, sea 1 año o 2 semanas."
+
+CONTEXTO PREVIO VERIFICADO
+    El bot SÍ operó: 2026-06-10 dos órdenes XAUUSD ORB SHORT reales en demo
+    (tickets 57018141012 y 57028343774; la 2ª cerró +27.36 USD vía time-stop ✓).
+    Los problemas eran de la APP, no del bot.
+
+1) SWITCH FUNCIONAL — scripts/control_server.py (NUEVO)
+    GitHub Pages es estático → la página no puede escribir runtime.yaml sola.
+    Solución: mini HTTP server DENTRO del proceso del bot, SOLO en 127.0.0.1:8772
+    (run_live lo arranca; flag --control-port, 0=off):
+      GET  /status  → take_trades + modo efectivo por activo (estado vivo)
+      POST /toggle  → {"symbol","value"} → config.runtime.set_take_trades()
+      CORS * + header Access-Control-Allow-Private-Network (Chrome PNA permite
+      fetch https→127.0.0.1; localhost es "origen confiable" en Chrome/FF/Edge).
+    Sin auth A PROPÓSITO: binding 127.0.0.1 = solo procesos de la máquina del
+    bot. NUNCA exponer en 0.0.0.0 sin añadir autenticación.
+
+    Web (app.js): probeControl() al cargar y en cada auto-refresh (timeout 1.5s).
+      · Control detectado → toggles HABILITADOS (label .toggle-live), al cambiar
+        hace POST /toggle, actualiza STATE y re-pinta (pill "Modo efectivo"
+        cambia al instante). Caption: "🎛 Control conectado al bot".
+      · Sin control (otro dispositivo) → modo lectura como antes, con caption
+        explicando que se controla desde la máquina del bot.
+    El bot aplica el cambio en el próximo tick (~30 s) — sin reiniciar nada.
+    El dashboard Streamlit sigue funcionando igual (escribe el mismo yaml).
+
+    VERIFICADO end-to-end: status→toggle OFF→runtime.yaml=false→toggle ON, y
+    desde la UI del navegador: click apaga/enciende EURUSD y el yaml lo refleja.
+
+2) BACKTEST RANGO LIBRE — causa raíz y fix
+    CAUSA: tanto bt-engine.js como scripts/backtest.py RECORTABAN la serie al
+    rango pedido y luego exigían 100 velas de warmup DENTRO del recorte. Un
+    rango de 2 días (≈190 velas M15) dejaba ~90 velas evaluables o directamente
+    "histórico insuficiente" → "sin trades" aunque el bot hubiera operado.
+    FIX (misma filosofía en ambos motores): la serie va COMPLETA (indicadores y
+    contexto intactos) y [from, to] filtra solo la TOMA de señales.
+      · bt-engine.js — continue antes de fromTs, break después de toTs.
+      · scripts/backtest.py — searchsorted para arrancar el loop en el primer
+        bar ≥ from (eficiente: 2 días no recorren el año) y cortar en to.
+        El trade abierto cerca de `to` se resuelve con velas posteriores (real).
+    PRESETS nuevos en la web: 2D · 1S · 2S (+ los de antes).
+    VERIFICADO: rango 2026-06-09→11 (2 días) → Python XAUUSD 1 trade;
+    simulador JS: 5 trades (NAS 2 + XAU 3, los días de las órdenes reales).
+
+3) FRESCURA DE DATOS DEL SIMULADOR
+    El OHLC del sitio se regenera en el refresh completo. Subido de 1×/día a
+    2×/día (triarch_service.ps1 → --publish-full-every-min 720) para que "ayer"
+    siempre esté en el simulador con ≤12 h de retraso. (El feed de Señales y la
+    cuenta van aparte, cada 10 min.)
+
+ARCHIVOS TOCADOS (v0.10.1)
+    scripts/control_server.py    — NUEVO (status/toggle en 127.0.0.1:8772).
+    scripts/run_live.py          — --control-port + arranque del control.
+    scripts/backtest.py          — rango libre con searchsorted.
+    assets/js/bt-engine.js       — rango libre (continue/break por bar.t).
+    assets/js/app.js             — probeControl/toggleTakeTrades/applyControlState,
+                                   toggles funcionales con delegación, presets 2D/1S/2S.
+    assets/css/styles.css        — .toggle-live (cursor + glow hover).
+    index.html                   — caption dinámico del control + presets.
+    scripts/triarch_service.ps1  — full refresh 2×/día.
+    docs/*                       — mirror completo.
+    contexto.txt                 — este §24.
+
+NOTAS
+    · El toggle web requiere que el BOT esté corriendo en la máquina (es quien
+      sirve el control). Si el bot está caído, la web lo dice y queda en lectura.
+    · pytest 23/23 · node --check OK · 0 errores de consola.
 
 ################################################################################
 #  FIN — actualizar §03, §10 y §11 al final de cada sesión
