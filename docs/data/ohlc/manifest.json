@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-10T02:45:39+00:00",
+  "generated_at": "2026-06-11T11:57:06+00:00",
   "symbols": [
     "NAS100",
     "XAUUSD",
@@ -8,8 +8,8 @@
   "ranges": {
     "NAS100": {
       "from": 1747067400000,
-      "to": 1781046000000,
-      "rows": 7015,
+      "to": 1781132400000,
+      "rows": 7042,
       "timeframe": "M15",
       "strategies": [
         "PULLBACK_TREND",
@@ -23,8 +23,8 @@
     },
     "XAUUSD": {
       "from": 1749522600000,
-      "to": 1781058600000,
-      "rows": 23341,
+      "to": 1781178300000,
+      "rows": 23466,
       "timeframe": "M15",
       "strategies": [
         "DONCHIAN_BREAK",
@@ -38,8 +38,8 @@
     },
     "EURUSD": {
       "from": 1747367700000,
-      "to": 1781059200000,
-      "rows": 79078,
+      "to": 1781178900000,
+      "rows": 79477,
       "timeframe": "M5",
       "strategies": [
         "EMA_MOMENTUM",
