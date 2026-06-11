@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-06-11T23:50:42+00:00",
+    "generated_at": "2026-06-11T23:56:46+00:00",
     "is_sample": false,
     "signals_count": 1000,
     "evals_count": 500
@@ -36600,36 +36600,36 @@
       "target_trades_wk": 5,
       "range": {
         "from": "2025-05-20 16:30:00+00:00",
-        "to": "2026-06-09 16:45:00+00:00"
+        "to": "2026-06-11 16:30:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 1,
         "out_of_window": 191
       },
-      "trades": 245,
+      "trades": 246,
       "wins": 125,
-      "losses": 117,
-      "win_rate": 0.5102,
-      "profit_factor": 1.316,
-      "expectancy_r": 0.0993,
+      "losses": 118,
+      "win_rate": 0.5081,
+      "profit_factor": 1.299,
+      "expectancy_r": 0.0948,
       "avg_win_r": 0.8104,
-      "avg_loss_r": -0.6579,
+      "avg_loss_r": -0.6608,
       "largest_win_r": 2.0,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 10.355,
       "longest_win_streak": 7,
       "longest_loss_streak": 8,
-      "avg_bars_held": 6.58,
-      "trades_per_week_avg": 4.54,
-      "sharpe_ratio": 1.742,
-      "sortino_ratio": 4.103,
-      "sqn": 1.718,
+      "avg_bars_held": 6.57,
+      "trades_per_week_avg": 4.56,
+      "sharpe_ratio": 1.662,
+      "sortino_ratio": 3.922,
+      "sqn": 1.643,
       "by_strategy": {
         "DONCHIAN_BREAK": {
-          "trades": 149,
-          "expectancy_r": 0.1173,
-          "total_r": 17.4796
+          "trades": 150,
+          "expectancy_r": 0.1099,
+          "total_r": 16.4796
         },
         "EMA_MOMENTUM": {
           "trades": 1,
@@ -40327,6 +40327,21 @@
           "bars_held": 8,
           "pnl_r": -0.7911509458484035,
           "cum_r": 24.328924793392694
+        },
+        {
+          "time": "2026-06-11 16:30:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "SHORT",
+          "entry": 86.28,
+          "sl": 86.77479476674057,
+          "tp1": 85.29041046651886,
+          "rr_planned": 2.0,
+          "score": 0.8637954476497898,
+          "outcome": "SL",
+          "bars_held": 2,
+          "pnl_r": -1.0,
+          "cum_r": 23.328924793392694
         }
       ],
       "equity_curve": [
@@ -41309,6 +41324,10 @@
         {
           "time": "2026-06-09 16:45:00+00:00",
           "cum_r": 24.328924793392694
+        },
+        {
+          "time": "2026-06-11 16:30:00+00:00",
+          "cum_r": 23.328924793392694
         }
       ]
     },
@@ -41324,7 +41343,7 @@
       "skipped": {
         "min_rr": 3,
         "daily_cap": 1764,
-        "out_of_window": 1587
+        "out_of_window": 1593
       },
       "trades": 257,
       "wins": 133,
