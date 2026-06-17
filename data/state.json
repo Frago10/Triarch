@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-06-17T23:34:53+00:00",
+    "generated_at": "2026-06-17T23:40:29+00:00",
     "is_sample": false,
     "signals_count": 1000,
     "evals_count": 500
@@ -28092,6 +28092,91 @@
   ],
   "evals": [
     {
+      "eval_id": "4d9683904fec",
+      "timestamp_utc": "2026-06-17T23:35:26.780378+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "RSI_REVERSAL",
+      "family": "mean",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_reversal",
+      "blocked_detail": "rsi_prev=57.0 rsi_now=60.0",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "1d61ac4dfaef",
+      "timestamp_utc": "2026-06-17T23:35:26.773873+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "VWAP_MR",
+      "family": "mean",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "strong_trend",
+      "blocked_detail": "ema_spread 2.33 > 1.0",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "f9b9ca0549ec",
+      "timestamp_utc": "2026-06-17T23:35:26.767851+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "MACD_CROSS",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_macd_cross",
+      "blocked_detail": "long=False short=False strength=0.269",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "82ac83c3dc03",
+      "timestamp_utc": "2026-06-17T23:35:26.760425+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "SCALPER",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "out_of_window",
+      "blocked_detail": null,
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "1ff08d0d9d69",
+      "timestamp_utc": "2026-06-17T23:35:26.752426+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "EMA_MOMENTUM",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_alignment",
+      "blocked_detail": "long=False short=False slope=0.570",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
       "eval_id": "437c02f99ae8",
       "timestamp_utc": "2026-06-17T23:30:22.999844+00:00",
       "symbol": "EURUSD",
@@ -36505,91 +36590,6 @@
       "blocked_detail": "long=False short=False slope=0.196",
       "families_aligned": "[]",
       "signals_aligned": 0
-    },
-    {
-      "eval_id": "1a4e77d09320",
-      "timestamp_utc": "2026-06-17T17:45:07.778332+00:00",
-      "symbol": "EURUSD",
-      "timeframe": "M5",
-      "strategy": "RSI_REVERSAL",
-      "family": "mean",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_reversal",
-      "blocked_detail": "rsi_prev=59.0 rsi_now=67.0",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "2b2a3fc3de83",
-      "timestamp_utc": "2026-06-17T17:45:07.762311+00:00",
-      "symbol": "EURUSD",
-      "timeframe": "M5",
-      "strategy": "VWAP_MR",
-      "family": "mean",
-      "detected_setup": 1,
-      "direction": "LONG",
-      "score": 0.8,
-      "proposed_entry": 1.1593,
-      "emitted_signal_id": "d97bad93deca",
-      "blocked_by": null,
-      "blocked_detail": null,
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "b24d27fdbfc7",
-      "timestamp_utc": "2026-06-17T17:45:07.756310+00:00",
-      "symbol": "EURUSD",
-      "timeframe": "M5",
-      "strategy": "MACD_CROSS",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_macd_cross",
-      "blocked_detail": "long=False short=False strength=0.142",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "5abce1a294ba",
-      "timestamp_utc": "2026-06-17T17:45:07.749279+00:00",
-      "symbol": "EURUSD",
-      "timeframe": "M5",
-      "strategy": "SCALPER",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "out_of_window",
-      "blocked_detail": null,
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "e57ced4c6e7d",
-      "timestamp_utc": "2026-06-17T17:45:07.742187+00:00",
-      "symbol": "EURUSD",
-      "timeframe": "M5",
-      "strategy": "EMA_MOMENTUM",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_alignment",
-      "blocked_detail": "long=False short=False slope=0.102",
-      "families_aligned": "[]",
-      "signals_aligned": 0
     }
   ],
   "backtest_results": [
@@ -36600,36 +36600,36 @@
       "target_trades_wk": 5,
       "range": {
         "from": "2025-05-20 16:30:00+00:00",
-        "to": "2026-06-16 16:30:00+00:00"
+        "to": "2026-06-17 16:30:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 1,
-        "out_of_window": 193
+        "out_of_window": 198
       },
-      "trades": 250,
+      "trades": 251,
       "wins": 127,
-      "losses": 120,
-      "win_rate": 0.508,
-      "profit_factor": 1.283,
-      "expectancy_r": 0.0898,
+      "losses": 121,
+      "win_rate": 0.506,
+      "profit_factor": 1.267,
+      "expectancy_r": 0.0855,
       "avg_win_r": 0.8015,
-      "avg_loss_r": -0.6612,
+      "avg_loss_r": -0.664,
       "largest_win_r": 2.0,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 10.355,
       "longest_win_streak": 7,
       "longest_loss_streak": 8,
-      "avg_bars_held": 6.56,
-      "trades_per_week_avg": 4.55,
-      "sharpe_ratio": 1.581,
-      "sortino_ratio": 3.725,
-      "sqn": 1.575,
+      "avg_bars_held": 6.54,
+      "trades_per_week_avg": 4.56,
+      "sharpe_ratio": 1.504,
+      "sortino_ratio": 3.548,
+      "sqn": 1.501,
       "by_strategy": {
         "DONCHIAN_BREAK": {
-          "trades": 152,
-          "expectancy_r": 0.1049,
-          "total_r": 15.9478
+          "trades": 153,
+          "expectancy_r": 0.0977,
+          "total_r": 14.9478
         },
         "EMA_MOMENTUM": {
           "trades": 1,
@@ -40402,6 +40402,21 @@
           "bars_held": 1,
           "pnl_r": -1.0,
           "cum_r": 22.457320433827213
+        },
+        {
+          "time": "2026-06-17 16:30:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "SHORT",
+          "entry": 86.6,
+          "sl": 87.5234272139758,
+          "tp1": 84.7531455720484,
+          "rr_planned": 2.0,
+          "score": 0.9917143827208671,
+          "outcome": "SL",
+          "bars_held": 1,
+          "pnl_r": -1.0,
+          "cum_r": 21.457320433827213
         }
       ],
       "equity_curve": [
@@ -41404,6 +41419,10 @@
         {
           "time": "2026-06-16 16:30:00+00:00",
           "cum_r": 22.457320433827213
+        },
+        {
+          "time": "2026-06-17 16:30:00+00:00",
+          "cum_r": 21.457320433827213
         }
       ]
     },
@@ -41414,31 +41433,31 @@
       "target_trades_wk": 4,
       "range": {
         "from": "2025-06-11 09:30:00+00:00",
-        "to": "2026-06-16 08:00:00+00:00"
+        "to": "2026-06-17 09:15:00+00:00"
       },
       "skipped": {
         "min_rr": 3,
-        "daily_cap": 1786,
-        "out_of_window": 1604
+        "daily_cap": 1787,
+        "out_of_window": 1607
       },
-      "trades": 260,
+      "trades": 261,
       "wins": 135,
-      "losses": 125,
-      "win_rate": 0.5192,
-      "profit_factor": 1.4,
-      "expectancy_r": 0.1082,
+      "losses": 126,
+      "win_rate": 0.5172,
+      "profit_factor": 1.381,
+      "expectancy_r": 0.1039,
       "avg_win_r": 0.7285,
-      "avg_loss_r": -0.5618,
+      "avg_loss_r": -0.5653,
       "largest_win_r": 2.2,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 9.155,
       "longest_win_streak": 9,
       "longest_loss_streak": 7,
-      "avg_bars_held": 10.46,
-      "trades_per_week_avg": 4.81,
-      "sharpe_ratio": 1.904,
-      "sortino_ratio": 4.429,
-      "sqn": 1.934,
+      "avg_bars_held": 10.43,
+      "trades_per_week_avg": 4.83,
+      "sharpe_ratio": 1.827,
+      "sortino_ratio": 4.25,
+      "sqn": 1.86,
       "by_strategy": {
         "DONCHIAN_BREAK": {
           "trades": 15,
@@ -41456,9 +41475,9 @@
           "total_r": 7.4427
         },
         "PULLBACK_TREND": {
-          "trades": 29,
-          "expectancy_r": 0.3581,
-          "total_r": 10.3838
+          "trades": 30,
+          "expectancy_r": 0.3128,
+          "total_r": 9.3838
         },
         "VWAP_MR": {
           "trades": 1,
@@ -45366,6 +45385,21 @@
           "bars_held": 12,
           "pnl_r": 0.4629784310867106,
           "cum_r": 28.123775315311985
+        },
+        {
+          "time": "2026-06-17 09:15:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "PULLBACK_TREND",
+          "direction": "SHORT",
+          "entry": 4324.35,
+          "sl": 4330.895355469807,
+          "tp1": 4309.950217966425,
+          "rr_planned": 2.2,
+          "score": 0.7601872420783771,
+          "outcome": "SL",
+          "bars_held": 2,
+          "pnl_r": -1.0,
+          "cum_r": 27.123775315311985
         }
       ],
       "equity_curve": [
@@ -46408,6 +46442,10 @@
         {
           "time": "2026-06-16 08:00:00+00:00",
           "cum_r": 28.123775315311985
+        },
+        {
+          "time": "2026-06-17 09:15:00+00:00",
+          "cum_r": 27.123775315311985
         }
       ]
     },
@@ -46423,7 +46461,7 @@
       "skipped": {
         "min_rr": 0,
         "daily_cap": 0,
-        "out_of_window": 190
+        "out_of_window": 191
       },
       "trades": 66,
       "wins": 32,
