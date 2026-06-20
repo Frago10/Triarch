@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-06-20T00:49:12+00:00",
+    "generated_at": "2026-06-20T01:01:25+00:00",
     "is_sample": false,
     "signals_count": 1000,
     "evals_count": 500
@@ -36600,20 +36600,20 @@
       "target_trades_wk": 5,
       "range": {
         "from": "2025-05-20 16:30:00+00:00",
-        "to": "2026-06-17 16:30:00+00:00"
+        "to": "2026-06-18 19:00:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 1,
-        "out_of_window": 198
+        "out_of_window": 200
       },
-      "trades": 251,
-      "wins": 127,
+      "trades": 252,
+      "wins": 128,
       "losses": 121,
-      "win_rate": 0.506,
-      "profit_factor": 1.267,
-      "expectancy_r": 0.0855,
-      "avg_win_r": 0.8015,
+      "win_rate": 0.5079,
+      "profit_factor": 1.272,
+      "expectancy_r": 0.0867,
+      "avg_win_r": 0.7983,
       "avg_loss_r": -0.664,
       "largest_win_r": 2.0,
       "largest_loss_r": -1.0,
@@ -36621,10 +36621,10 @@
       "longest_win_streak": 7,
       "longest_loss_streak": 8,
       "avg_bars_held": 6.54,
-      "trades_per_week_avg": 4.56,
-      "sharpe_ratio": 1.504,
-      "sortino_ratio": 3.548,
-      "sqn": 1.501,
+      "trades_per_week_avg": 4.58,
+      "sharpe_ratio": 1.527,
+      "sortino_ratio": 3.598,
+      "sqn": 1.527,
       "by_strategy": {
         "DONCHIAN_BREAK": {
           "trades": 153,
@@ -36637,9 +36637,9 @@
           "total_r": 0.3082
         },
         "KELTNER_BREAK": {
-          "trades": 68,
-          "expectancy_r": 0.0449,
-          "total_r": 3.0498
+          "trades": 69,
+          "expectancy_r": 0.0498,
+          "total_r": 3.4395
         },
         "MACD_CROSS": {
           "trades": 1,
@@ -40417,6 +40417,21 @@
           "bars_held": 1,
           "pnl_r": -1.0,
           "cum_r": 21.457320433827213
+        },
+        {
+          "time": "2026-06-18 19:00:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "KELTNER_BREAK",
+          "direction": "SHORT",
+          "entry": 82.2,
+          "sl": 83.30351611158225,
+          "tp1": 80.21367099915194,
+          "rr_planned": 1.8000000000000052,
+          "score": 0.6973652588597032,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.3896635449966027,
+          "cum_r": 21.846983978823815
         }
       ],
       "equity_curve": [
@@ -41423,6 +41438,10 @@
         {
           "time": "2026-06-17 16:30:00+00:00",
           "cum_r": 21.457320433827213
+        },
+        {
+          "time": "2026-06-18 19:00:00+00:00",
+          "cum_r": 21.846983978823815
         }
       ]
     },
@@ -41433,36 +41452,36 @@
       "target_trades_wk": 4,
       "range": {
         "from": "2025-06-11 09:30:00+00:00",
-        "to": "2026-06-17 09:15:00+00:00"
+        "to": "2026-06-19 10:15:00+00:00"
       },
       "skipped": {
         "min_rr": 3,
-        "daily_cap": 1787,
-        "out_of_window": 1607
+        "daily_cap": 1797,
+        "out_of_window": 1622
       },
-      "trades": 261,
-      "wins": 135,
-      "losses": 126,
-      "win_rate": 0.5172,
-      "profit_factor": 1.381,
-      "expectancy_r": 0.1039,
-      "avg_win_r": 0.7285,
-      "avg_loss_r": -0.5653,
+      "trades": 263,
+      "wins": 136,
+      "losses": 127,
+      "win_rate": 0.5171,
+      "profit_factor": 1.385,
+      "expectancy_r": 0.1057,
+      "avg_win_r": 0.7354,
+      "avg_loss_r": -0.5687,
       "largest_win_r": 2.2,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 9.155,
       "longest_win_streak": 9,
       "longest_loss_streak": 7,
-      "avg_bars_held": 10.43,
-      "trades_per_week_avg": 4.83,
-      "sharpe_ratio": 1.827,
-      "sortino_ratio": 4.25,
-      "sqn": 1.86,
+      "avg_bars_held": 10.4,
+      "trades_per_week_avg": 4.87,
+      "sharpe_ratio": 1.849,
+      "sortino_ratio": 4.317,
+      "sqn": 1.889,
       "by_strategy": {
         "DONCHIAN_BREAK": {
-          "trades": 15,
-          "expectancy_r": 0.7186,
-          "total_r": 10.7791
+          "trades": 16,
+          "expectancy_r": 0.7776,
+          "total_r": 12.4417
         },
         "KELTNER_BREAK": {
           "trades": 1,
@@ -41475,9 +41494,9 @@
           "total_r": 7.4427
         },
         "PULLBACK_TREND": {
-          "trades": 30,
-          "expectancy_r": 0.3128,
-          "total_r": 9.3838
+          "trades": 31,
+          "expectancy_r": 0.2704,
+          "total_r": 8.3838
         },
         "VWAP_MR": {
           "trades": 1,
@@ -45400,6 +45419,36 @@
           "bars_held": 2,
           "pnl_r": -1.0,
           "cum_r": 27.123775315311985
+        },
+        {
+          "time": "2026-06-18 11:45:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "SHORT",
+          "entry": 4266.78,
+          "sl": 4281.68398129707,
+          "tp1": 4233.991241146445,
+          "rr_planned": 2.2,
+          "score": 0.9164371118949525,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": 1.662642988210843,
+          "cum_r": 28.78641830352283
+        },
+        {
+          "time": "2026-06-19 10:15:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "PULLBACK_TREND",
+          "direction": "SHORT",
+          "entry": 4152.54,
+          "sl": 4162.471531478043,
+          "tp1": 4130.690630748305,
+          "rr_planned": 2.1999999999999633,
+          "score": 0.946826209785889,
+          "outcome": "SL",
+          "bars_held": 2,
+          "pnl_r": -1.0,
+          "cum_r": 27.78641830352283
         }
       ],
       "equity_curve": [
@@ -46446,6 +46495,14 @@
         {
           "time": "2026-06-17 09:15:00+00:00",
           "cum_r": 27.123775315311985
+        },
+        {
+          "time": "2026-06-18 11:45:00+00:00",
+          "cum_r": 28.78641830352283
+        },
+        {
+          "time": "2026-06-19 10:15:00+00:00",
+          "cum_r": 27.78641830352283
         }
       ]
     },
@@ -46456,31 +46513,31 @@
       "target_trades_wk": 3,
       "range": {
         "from": "2025-05-19 16:10:00+00:00",
-        "to": "2026-06-16 15:35:00+00:00"
+        "to": "2026-06-18 16:50:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 0,
-        "out_of_window": 191
+        "out_of_window": 194
       },
-      "trades": 66,
+      "trades": 67,
       "wins": 32,
-      "losses": 34,
-      "win_rate": 0.4848,
-      "profit_factor": 2.211,
-      "expectancy_r": 0.6073,
+      "losses": 35,
+      "win_rate": 0.4776,
+      "profit_factor": 2.146,
+      "expectancy_r": 0.5833,
       "avg_win_r": 2.2865,
-      "avg_loss_r": -0.9732,
+      "avg_loss_r": -0.974,
       "largest_win_r": 7.0604,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 7.15,
       "longest_win_streak": 7,
       "longest_loss_streak": 6,
-      "avg_bars_held": 5.62,
-      "trades_per_week_avg": 2.54,
-      "sharpe_ratio": 4.519,
-      "sortino_ratio": 62.688,
-      "sqn": 2.313,
+      "avg_bars_held": 5.6,
+      "trades_per_week_avg": 2.58,
+      "sharpe_ratio": 4.355,
+      "sortino_ratio": 61.064,
+      "sqn": 2.245,
       "by_strategy": {
         "EMA_MOMENTUM": {
           "trades": 13,
@@ -46493,9 +46550,9 @@
           "total_r": 0.65
         },
         "VWAP_MR": {
-          "trades": 37,
-          "expectancy_r": 1.0792,
-          "total_r": 39.9295
+          "trades": 38,
+          "expectancy_r": 1.0245,
+          "total_r": 38.9295
         }
       },
       "trade_log": [
@@ -47488,6 +47545,21 @@
           "bars_held": 5,
           "pnl_r": -1.0,
           "cum_r": 40.07947688576049
+        },
+        {
+          "time": "2026-06-18 16:50:00+00:00",
+          "symbol": "EURUSD",
+          "strategy": "VWAP_MR",
+          "direction": "LONG",
+          "entry": 1.14719,
+          "sl": 1.1468931904082655,
+          "tp1": 1.1493728781252397,
+          "rr_planned": 7.354472988841829,
+          "score": 0.8,
+          "outcome": "SL",
+          "bars_held": 4,
+          "pnl_r": -1.0,
+          "cum_r": 39.07947688576049
         }
       ],
       "equity_curve": [
@@ -47754,6 +47826,10 @@
         {
           "time": "2026-06-16 15:35:00+00:00",
           "cum_r": 40.07947688576049
+        },
+        {
+          "time": "2026-06-18 16:50:00+00:00",
+          "cum_r": 39.07947688576049
         }
       ]
     }
