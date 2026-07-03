@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-07-03T01:23:39+00:00",
+    "generated_at": "2026-07-03T01:28:58+00:00",
     "is_sample": false,
     "signals_count": 1000,
     "evals_count": 500
@@ -28092,6 +28092,91 @@
   ],
   "evals": [
     {
+      "eval_id": "8453fc0364a4",
+      "timestamp_utc": "2026-07-03T01:25:13.924710+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "RSI_REVERSAL",
+      "family": "mean",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_reversal",
+      "blocked_detail": "rsi_prev=90.2 rsi_now=91.4",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "5e576eed9eca",
+      "timestamp_utc": "2026-07-03T01:25:13.918711+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "VWAP_MR",
+      "family": "mean",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "strong_trend",
+      "blocked_detail": "ema_spread 1.38 > 1.0",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "0fd3b14ac646",
+      "timestamp_utc": "2026-07-03T01:25:13.910319+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "MACD_CROSS",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_macd_cross",
+      "blocked_detail": "long=False short=False strength=0.676",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "92d479637064",
+      "timestamp_utc": "2026-07-03T01:25:13.903810+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "SCALPER",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "out_of_window",
+      "blocked_detail": null,
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
+      "eval_id": "5be076615a0d",
+      "timestamp_utc": "2026-07-03T01:25:13.895302+00:00",
+      "symbol": "EURUSD",
+      "timeframe": "M5",
+      "strategy": "EMA_MOMENTUM",
+      "family": "trend",
+      "detected_setup": 0,
+      "direction": null,
+      "score": null,
+      "proposed_entry": null,
+      "emitted_signal_id": null,
+      "blocked_by": "no_pullback",
+      "blocked_detail": "touched=False bounced=True",
+      "families_aligned": "[]",
+      "signals_aligned": 0
+    },
+    {
       "eval_id": "5ae271c31c4a",
       "timestamp_utc": "2026-07-03T01:20:07.977695+00:00",
       "symbol": "EURUSD",
@@ -36505,91 +36590,6 @@
       "blocked_detail": null,
       "families_aligned": "[]",
       "signals_aligned": 0
-    },
-    {
-      "eval_id": "728ca59b9d72",
-      "timestamp_utc": "2026-07-02T19:15:04.747280+00:00",
-      "symbol": "XAUUSD",
-      "timeframe": "M15",
-      "strategy": "DONCHIAN_BREAK",
-      "family": "structural",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_breakout",
-      "blocked_detail": "close=4114.48000 dc_up=4138.32000 dc_lo=4100.24000 body=0.73",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "38e0cff5cb1f",
-      "timestamp_utc": "2026-07-02T19:15:04.722280+00:00",
-      "symbol": "NAS100",
-      "timeframe": "M15",
-      "strategy": "VWAP_MR",
-      "family": "mean",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "strong_trend",
-      "blocked_detail": "ema_spread 5.17 > 1.0",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "0a6e16bff21d",
-      "timestamp_utc": "2026-07-02T19:15:04.716281+00:00",
-      "symbol": "NAS100",
-      "timeframe": "M15",
-      "strategy": "EMA_MOMENTUM",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_pullback",
-      "blocked_detail": "touched=False bounced=True",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "c84efcda02fa",
-      "timestamp_utc": "2026-07-02T19:15:04.710281+00:00",
-      "symbol": "NAS100",
-      "timeframe": "M15",
-      "strategy": "MACD_CROSS",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_macd_cross",
-      "blocked_detail": "long=False short=False strength=0.311",
-      "families_aligned": "[]",
-      "signals_aligned": 0
-    },
-    {
-      "eval_id": "7e2c4a79ecd1",
-      "timestamp_utc": "2026-07-02T19:15:04.703280+00:00",
-      "symbol": "NAS100",
-      "timeframe": "M15",
-      "strategy": "KELTNER_BREAK",
-      "family": "trend",
-      "detected_setup": 0,
-      "direction": null,
-      "score": null,
-      "proposed_entry": null,
-      "emitted_signal_id": null,
-      "blocked_by": "no_keltner_break",
-      "blocked_detail": "rsi=58.8 body=0.80",
-      "families_aligned": "[]",
-      "signals_aligned": 0
     }
   ],
   "backtest_results": [
@@ -36600,36 +36600,36 @@
       "target_trades_wk": 5,
       "range": {
         "from": "2025-05-20 16:30:00+00:00",
-        "to": "2026-06-18 19:00:00+00:00"
+        "to": "2026-07-02 16:30:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 1,
-        "out_of_window": 200
+        "out_of_window": 212
       },
-      "trades": 252,
-      "wins": 128,
-      "losses": 121,
-      "win_rate": 0.5079,
-      "profit_factor": 1.272,
-      "expectancy_r": 0.0867,
-      "avg_win_r": 0.7983,
-      "avg_loss_r": -0.664,
+      "trades": 261,
+      "wins": 135,
+      "losses": 123,
+      "win_rate": 0.5172,
+      "profit_factor": 1.322,
+      "expectancy_r": 0.1015,
+      "avg_win_r": 0.8062,
+      "avg_loss_r": -0.6694,
       "largest_win_r": 2.0,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 10.355,
       "longest_win_streak": 7,
       "longest_loss_streak": 8,
-      "avg_bars_held": 6.54,
+      "avg_bars_held": 6.55,
       "trades_per_week_avg": 4.58,
-      "sharpe_ratio": 1.527,
-      "sortino_ratio": 3.598,
-      "sqn": 1.527,
+      "sharpe_ratio": 1.781,
+      "sortino_ratio": 4.223,
+      "sqn": 1.813,
       "by_strategy": {
         "DONCHIAN_BREAK": {
-          "trades": 153,
-          "expectancy_r": 0.0977,
-          "total_r": 14.9478
+          "trades": 158,
+          "expectancy_r": 0.117,
+          "total_r": 18.483
         },
         "EMA_MOMENTUM": {
           "trades": 1,
@@ -36637,9 +36637,9 @@
           "total_r": 0.3082
         },
         "KELTNER_BREAK": {
-          "trades": 69,
-          "expectancy_r": 0.0498,
-          "total_r": 3.4395
+          "trades": 72,
+          "expectancy_r": 0.0772,
+          "total_r": 5.5585
         },
         "MACD_CROSS": {
           "trades": 1,
@@ -36647,9 +36647,9 @@
           "total_r": 0.3963
         },
         "PULLBACK_TREND": {
-          "trades": 28,
-          "expectancy_r": 0.0984,
-          "total_r": 2.7552
+          "trades": 29,
+          "expectancy_r": 0.0605,
+          "total_r": 1.7552
         }
       },
       "trade_log": [
@@ -40432,6 +40432,141 @@
           "bars_held": 8,
           "pnl_r": 0.3896635449966027,
           "cum_r": 21.846983978823815
+        },
+        {
+          "time": "2026-06-24 17:00:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "PULLBACK_TREND",
+          "direction": "SHORT",
+          "entry": 82.13,
+          "sl": 83.10994809151305,
+          "tp1": 80.56208305357912,
+          "rr_planned": 1.5999999999999972,
+          "score": 0.8115117891816916,
+          "outcome": "SL",
+          "bars_held": 5,
+          "pnl_r": -1.0,
+          "cum_r": 20.846983978823815
+        },
+        {
+          "time": "2026-06-25 16:30:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "SHORT",
+          "entry": 80.94,
+          "sl": 81.54913746763485,
+          "tp1": 79.7217250647303,
+          "rr_planned": 2.0,
+          "score": 0.948248647372614,
+          "outcome": "TP",
+          "bars_held": 6,
+          "pnl_r": 2.0,
+          "cum_r": 22.846983978823815
+        },
+        {
+          "time": "2026-06-25 17:30:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "KELTNER_BREAK",
+          "direction": "SHORT",
+          "entry": 80.46,
+          "sl": 81.52539038750999,
+          "tp1": 78.54229730248201,
+          "rr_planned": 1.7999999999999947,
+          "score": 0.7801040755646003,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.9198506120281641,
+          "cum_r": 23.76683459085198
+        },
+        {
+          "time": "2026-06-25 17:45:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "SHORT",
+          "entry": 80.06,
+          "sl": 80.76698995591184,
+          "tp1": 78.64602008817633,
+          "rr_planned": 2.0,
+          "score": 0.9017694009704806,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 1.2447135813478702,
+          "cum_r": 25.01154817219985
+        },
+        {
+          "time": "2026-06-25 18:00:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "KELTNER_BREAK",
+          "direction": "SHORT",
+          "entry": 79.83,
+          "sl": 81.23765516982111,
+          "tp1": 77.296220694322,
+          "rr_planned": 1.799999999999996,
+          "score": 0.776078095065697,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.5043848914292143,
+          "cum_r": 25.515933063629063
+        },
+        {
+          "time": "2026-07-01 17:45:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "KELTNER_BREAK",
+          "direction": "LONG",
+          "entry": 81.25,
+          "sl": 79.59479719460029,
+          "tp1": 84.22936504971948,
+          "rr_planned": 1.7999999999999983,
+          "score": 0.8207099957342376,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.6947789094172634,
+          "cum_r": 26.210711973046326
+        },
+        {
+          "time": "2026-07-01 18:00:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "LONG",
+          "entry": 81.84,
+          "sl": 81.03351571485025,
+          "tp1": 83.4529685702995,
+          "rr_planned": 2.0,
+          "score": 0.9635189401290973,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.7811683520690242,
+          "cum_r": 26.99188032511535
+        },
+        {
+          "time": "2026-07-01 19:00:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "LONG",
+          "entry": 82.22,
+          "sl": 81.59169367569062,
+          "tp1": 83.47661264861875,
+          "rr_planned": 2.0,
+          "score": 0.8706335415109667,
+          "outcome": "TIMEOUT",
+          "bars_held": 8,
+          "pnl_r": 0.5093057122284186,
+          "cum_r": 27.501186037343768
+        },
+        {
+          "time": "2026-07-02 16:30:00+00:00",
+          "symbol": "NAS100",
+          "strategy": "DONCHIAN_BREAK",
+          "direction": "LONG",
+          "entry": 84.58,
+          "sl": 83.8367806964611,
+          "tp1": 86.06643860707779,
+          "rr_planned": 2.0,
+          "score": 0.9637334492369181,
+          "outcome": "SL",
+          "bars_held": 1,
+          "pnl_r": -1.0,
+          "cum_r": 26.501186037343768
         }
       ],
       "equity_curve": [
@@ -41442,6 +41577,42 @@
         {
           "time": "2026-06-18 19:00:00+00:00",
           "cum_r": 21.846983978823815
+        },
+        {
+          "time": "2026-06-24 17:00:00+00:00",
+          "cum_r": 20.846983978823815
+        },
+        {
+          "time": "2026-06-25 16:30:00+00:00",
+          "cum_r": 22.846983978823815
+        },
+        {
+          "time": "2026-06-25 17:30:00+00:00",
+          "cum_r": 23.76683459085198
+        },
+        {
+          "time": "2026-06-25 17:45:00+00:00",
+          "cum_r": 25.01154817219985
+        },
+        {
+          "time": "2026-06-25 18:00:00+00:00",
+          "cum_r": 25.515933063629063
+        },
+        {
+          "time": "2026-07-01 17:45:00+00:00",
+          "cum_r": 26.210711973046326
+        },
+        {
+          "time": "2026-07-01 18:00:00+00:00",
+          "cum_r": 26.99188032511535
+        },
+        {
+          "time": "2026-07-01 19:00:00+00:00",
+          "cum_r": 27.501186037343768
+        },
+        {
+          "time": "2026-07-02 16:30:00+00:00",
+          "cum_r": 26.501186037343768
         }
       ]
     },
@@ -41452,31 +41623,31 @@
       "target_trades_wk": 4,
       "range": {
         "from": "2025-06-11 09:30:00+00:00",
-        "to": "2026-06-19 10:15:00+00:00"
+        "to": "2026-07-02 08:30:00+00:00"
       },
       "skipped": {
         "min_rr": 3,
-        "daily_cap": 1797,
-        "out_of_window": 1622
+        "daily_cap": 1851,
+        "out_of_window": 1671
       },
-      "trades": 263,
-      "wins": 136,
-      "losses": 127,
-      "win_rate": 0.5171,
-      "profit_factor": 1.385,
-      "expectancy_r": 0.1057,
-      "avg_win_r": 0.7354,
-      "avg_loss_r": -0.5687,
+      "trades": 272,
+      "wins": 140,
+      "losses": 132,
+      "win_rate": 0.5147,
+      "profit_factor": 1.375,
+      "expectancy_r": 0.102,
+      "avg_win_r": 0.7269,
+      "avg_loss_r": -0.5608,
       "largest_win_r": 2.2,
       "largest_loss_r": -1.0,
       "max_drawdown_r": 9.155,
       "longest_win_streak": 9,
       "longest_loss_streak": 7,
-      "avg_bars_held": 10.4,
-      "trades_per_week_avg": 4.87,
-      "sharpe_ratio": 1.849,
-      "sortino_ratio": 4.317,
-      "sqn": 1.889,
+      "avg_bars_held": 10.42,
+      "trades_per_week_avg": 4.86,
+      "sharpe_ratio": 1.805,
+      "sortino_ratio": 4.165,
+      "sqn": 1.875,
       "by_strategy": {
         "DONCHIAN_BREAK": {
           "trades": 16,
@@ -41489,9 +41660,9 @@
           "total_r": 0.5181
         },
         "ORB": {
-          "trades": 214,
-          "expectancy_r": 0.0348,
-          "total_r": 7.4427
+          "trades": 223,
+          "expectancy_r": 0.0332,
+          "total_r": 7.3933
         },
         "PULLBACK_TREND": {
           "trades": 31,
@@ -45449,6 +45620,141 @@
           "bars_held": 2,
           "pnl_r": -1.0,
           "cum_r": 27.78641830352283
+        },
+        {
+          "time": "2026-06-22 08:00:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "LONG",
+          "entry": 4185.43,
+          "sl": 4131.6801455470695,
+          "tp1": 4303.679679796448,
+          "rr_planned": 2.2,
+          "score": 1.0,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": 0.08539558007584279,
+          "cum_r": 27.871813883598673
+        },
+        {
+          "time": "2026-06-23 10:30:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 4104.97,
+          "sl": 4196.996082431521,
+          "tp1": 3902.512618650654,
+          "rr_planned": 2.2,
+          "score": 0.889179861161764,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": -0.2352593898160336,
+          "cum_r": 27.63655449378264
+        },
+        {
+          "time": "2026-06-24 11:45:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 4076.27,
+          "sl": 4116.439051986785,
+          "tp1": 3987.8980856290736,
+          "rr_planned": 2.1999999999999953,
+          "score": 0.9437642772302064,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": 0.735143065106821,
+          "cum_r": 28.371697558889462
+        },
+        {
+          "time": "2026-06-25 09:00:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 3980.22,
+          "sl": 4011.4729389715203,
+          "tp1": 3911.463534262655,
+          "rr_planned": 2.199999999999997,
+          "score": 0.9249613010874509,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": -0.3455675003826606,
+          "cum_r": 28.0261300585068
+        },
+        {
+          "time": "2026-06-26 12:15:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "LONG",
+          "entry": 4048.28,
+          "sl": 3987.5845908016613,
+          "tp1": 4181.809900236346,
+          "rr_planned": 2.2000000000000046,
+          "score": 1.0,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": -0.026525894153526682,
+          "cum_r": 27.999604164353276
+        },
+        {
+          "time": "2026-06-29 10:00:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 4059.1,
+          "sl": 4087.6122902345314,
+          "tp1": 3996.3729614840304,
+          "rr_planned": 2.2000000000000064,
+          "score": 0.6160016274370276,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": 0.7245998069624839,
+          "cum_r": 28.72420397131576
+        },
+        {
+          "time": "2026-06-30 08:30:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 3979.41,
+          "sl": 4024.590568644457,
+          "tp1": 3880.012748982194,
+          "rr_planned": 2.2,
+          "score": 0.9529533959757768,
+          "outcome": "SL",
+          "bars_held": 4,
+          "pnl_r": -1.0,
+          "cum_r": 27.72420397131576
+        },
+        {
+          "time": "2026-07-01 09:00:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "SHORT",
+          "entry": 3965.25,
+          "sl": 4019.4678039969795,
+          "tp1": 3845.970831206645,
+          "rr_planned": 2.2000000000000033,
+          "score": 1.0,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": -0.1942166451556548,
+          "cum_r": 27.529987326160104
+        },
+        {
+          "time": "2026-07-02 08:30:00+00:00",
+          "symbol": "XAUUSD",
+          "strategy": "ORB",
+          "direction": "LONG",
+          "entry": 4061.85,
+          "sl": 3996.551950102668,
+          "tp1": 4205.50570977413,
+          "rr_planned": 2.1999999999999957,
+          "score": 1.0,
+          "outcome": "TIMEOUT",
+          "bars_held": 12,
+          "pnl_r": 0.20705059371998777,
+          "cum_r": 27.73703791988009
         }
       ],
       "equity_curve": [
@@ -46503,6 +46809,42 @@
         {
           "time": "2026-06-19 10:15:00+00:00",
           "cum_r": 27.78641830352283
+        },
+        {
+          "time": "2026-06-22 08:00:00+00:00",
+          "cum_r": 27.871813883598673
+        },
+        {
+          "time": "2026-06-23 10:30:00+00:00",
+          "cum_r": 27.63655449378264
+        },
+        {
+          "time": "2026-06-24 11:45:00+00:00",
+          "cum_r": 28.371697558889462
+        },
+        {
+          "time": "2026-06-25 09:00:00+00:00",
+          "cum_r": 28.0261300585068
+        },
+        {
+          "time": "2026-06-26 12:15:00+00:00",
+          "cum_r": 27.999604164353276
+        },
+        {
+          "time": "2026-06-29 10:00:00+00:00",
+          "cum_r": 28.72420397131576
+        },
+        {
+          "time": "2026-06-30 08:30:00+00:00",
+          "cum_r": 27.72420397131576
+        },
+        {
+          "time": "2026-07-01 09:00:00+00:00",
+          "cum_r": 27.529987326160104
+        },
+        {
+          "time": "2026-07-02 08:30:00+00:00",
+          "cum_r": 27.73703791988009
         }
       ]
     },
@@ -46513,20 +46855,20 @@
       "target_trades_wk": 3,
       "range": {
         "from": "2025-05-19 16:10:00+00:00",
-        "to": "2026-06-18 16:50:00+00:00"
+        "to": "2026-07-02 14:45:00+00:00"
       },
       "skipped": {
         "min_rr": 0,
         "daily_cap": 0,
-        "out_of_window": 194
+        "out_of_window": 201
       },
-      "trades": 67,
-      "wins": 32,
+      "trades": 68,
+      "wins": 33,
       "losses": 35,
-      "win_rate": 0.4776,
-      "profit_factor": 2.146,
-      "expectancy_r": 0.5833,
-      "avg_win_r": 2.2865,
+      "win_rate": 0.4853,
+      "profit_factor": 2.254,
+      "expectancy_r": 0.6284,
+      "avg_win_r": 2.328,
       "avg_loss_r": -0.974,
       "largest_win_r": 7.0604,
       "largest_loss_r": -1.0,
@@ -46534,10 +46876,10 @@
       "longest_win_streak": 7,
       "longest_loss_streak": 6,
       "avg_bars_held": 5.6,
-      "trades_per_week_avg": 2.58,
-      "sharpe_ratio": 4.355,
-      "sortino_ratio": 61.064,
-      "sqn": 2.245,
+      "trades_per_week_avg": 2.52,
+      "sharpe_ratio": 4.656,
+      "sortino_ratio": 65.793,
+      "sqn": 2.419,
       "by_strategy": {
         "EMA_MOMENTUM": {
           "trades": 13,
@@ -46550,9 +46892,9 @@
           "total_r": 0.65
         },
         "VWAP_MR": {
-          "trades": 38,
-          "expectancy_r": 1.0245,
-          "total_r": 38.9295
+          "trades": 39,
+          "expectancy_r": 1.0919,
+          "total_r": 42.5843
         }
       },
       "trade_log": [
@@ -47560,6 +47902,21 @@
           "bars_held": 4,
           "pnl_r": -1.0,
           "cum_r": 39.07947688576049
+        },
+        {
+          "time": "2026-07-02 14:45:00+00:00",
+          "symbol": "EURUSD",
+          "strategy": "VWAP_MR",
+          "direction": "SHORT",
+          "entry": 1.14063,
+          "sl": 1.1408714496146424,
+          "tp1": 1.1397475477608712,
+          "rr_planned": 3.654809060002163,
+          "score": 0.7741231804865614,
+          "outcome": "TP",
+          "bars_held": 6,
+          "pnl_r": 3.654809060002163,
+          "cum_r": 42.73428594576266
         }
       ],
       "equity_curve": [
@@ -47830,6 +48187,10 @@
         {
           "time": "2026-06-18 16:50:00+00:00",
           "cum_r": 39.07947688576049
+        },
+        {
+          "time": "2026-07-02 14:45:00+00:00",
+          "cum_r": 42.73428594576266
         }
       ]
     }
